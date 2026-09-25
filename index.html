@@ -5,26 +5,48 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <title>連棋大挑戰 🎲 (iPad 優化一次到位版)</title>
+  <title>象棋大對決 🎲 暗棋與連棋 (iPad 優化版)</title>
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
   <div id="app-container">
 
-    <!-- 畫面 1：首頁選單 -->
+    <!-- 畫面 1：首頁・選擇玩法 (連棋 vs 暗棋) -->
     <section id="screen-home" class="view-screen active">
-      <h1 class="game-title">🎲 連棋大挑戰 🎲</h1>
-      <p class="sub-title">專為小朋友量身打造・翻棋、吃子、超爽快連續連吃！</p>
+      <h1 class="game-title">🎲 象棋大對決 🎲</h1>
+      <p class="sub-title">請選擇今天想玩的遊戲玩法：</p>
       
-      <div class="menu-buttons">
-        <button id="btn-mode-single" class="btn-primary" onclick="GameApp.showOpponents()">
-          <span>🤖</span> 單人遊戲 (VS 電腦)
-        </button>
-        <button id="btn-mode-dual" class="btn-primary" onclick="GameApp.startDualMode()">
-          <span>👥</span> 雙人遊戲 (輪流對戰)
-        </button>
+      <div class="mode-select-grid">
+        <!-- 玩法 1：連棋模式 -->
+        <div class="mode-card featured" onclick="GameApp.chooseRuleMode('lianqi')">
+          <div class="mode-icon">🔥</div>
+          <div class="mode-title">連棋大挑戰</div>
+          <div class="mode-badge-tag">連吃 Combo 爽快版</div>
+          <div class="mode-desc">
+            • 吃子後可<strong>連續吃相鄰敵棋</strong>！<br>
+            • 炮可<strong>隔子跳吃暗棋</strong>！<br>
+            • 支援同階互吃、小卒逆襲吃帥！
+          </div>
+          <button class="btn-primary mode-enter-btn">開始玩連棋 ➔</button>
+        </div>
+
+        <!-- 玩法 2：傳統暗棋 -->
+        <div class="mode-card" onclick="GameApp.chooseRuleMode('banqi')">
+          <div class="mode-icon">🎯</div>
+          <div class="mode-title">傳統經典暗棋</div>
+          <div class="mode-badge-tag classic">正統一步棋版</div>
+          <div class="mode-desc">
+            • 經典標準玩法，<strong>一回合走一步</strong>！<br>
+            • 翻棋、走子、或吃一子換手。<br>
+            • 沉著冷靜，考驗每一步的大局佈局！
+          </div>
+          <button class="btn-secondary mode-enter-btn">開始玩暗棋 ➔</button>
+        </div>
+      </div>
+
+      <div class="home-sub-tools">
         <button class="btn-secondary" onclick="GameApp.openRules()">
-          <span>📖</span> 連棋遊戲玩法與規則
+          <span>📖</span> 玩法與規則說明
         </button>
         <button id="btn-toggle-sound" class="btn-secondary" onclick="GameApp.toggleSound()">
           <span id="sound-icon">🔊</span> 語音音效：開
@@ -32,47 +54,64 @@
       </div>
     </section>
 
-    <!-- 畫面 2：單人模式選擇對手 -->
+    <!-- 畫面 2：選擇模式與對手 -->
     <section id="screen-opponents" class="view-screen">
-      <h1 class="game-title">選擇你的對手</h1>
-      <p class="sub-title">選一個你想要對戰的好朋友或家人吧！</p>
+      <div class="header-rule-indicator" id="opponents-rule-indicator">當前玩法：🔥 連棋大挑戰</div>
+      <h1 class="game-title">選擇對戰方式</h1>
+      <p class="sub-title">想和誰一較高下呢？</p>
+
+      <div class="play-type-toggle">
+        <button id="btn-tab-single" class="tab-btn active" onclick="GameApp.setPlayType('single')">🤖 單人對抗 AI</button>
+        <button id="btn-tab-dual" class="tab-btn" onclick="GameApp.setPlayType('dual')">👥 雙人面對面</button>
+      </div>
       
-      <div class="opponent-grid">
+      <!-- 單人對手清單 -->
+      <div id="panel-single-opponents" class="opponent-grid">
         <div class="opponent-card" onclick="GameApp.selectOpponent('eric')">
           <div class="opponent-avatar">👦</div>
           <div class="opponent-name">男同學</div>
           <div class="opponent-code">(Eric)</div>
-          <div class="opponent-desc">入門練習・活潑開朗<br>適合新手熟悉翻棋節奏！</div>
+          <div class="opponent-desc">入門練習・活潑開朗<br>適合熟悉吃子節奏！</div>
         </div>
 
         <div class="opponent-card" onclick="GameApp.selectOpponent('ana')">
           <div class="opponent-avatar">👧</div>
           <div class="opponent-name">女同學</div>
           <div class="opponent-code">(Ana)</div>
-          <div class="opponent-desc">靈活機智・穩扎穩打<br>注意不要被她的連吃嚇到喔！</div>
+          <div class="opponent-desc">靈活機智・穩扎穩打<br>注意攻守平衡！</div>
         </div>
 
         <div class="opponent-card" onclick="GameApp.selectOpponent('davis')">
           <div class="opponent-avatar">👨</div>
           <div class="opponent-name">爸爸</div>
           <div class="opponent-code">(Davis)</div>
-          <div class="opponent-desc">沉著老練・棋藝高超<br>善用車馬炮佈局與進攻！</div>
+          <div class="opponent-desc">沉著老練・棋藝高超<br>善用車馬炮進攻佈局！</div>
         </div>
 
         <div class="opponent-card" onclick="GameApp.selectOpponent('michelle')">
           <div class="opponent-avatar">👩</div>
           <div class="opponent-name">媽媽</div>
           <div class="opponent-code">(Michelle)</div>
-          <div class="opponent-desc">細心縝密・高手挑戰<br>深思熟慮，考驗你的專注力！</div>
+          <div class="opponent-desc">細心縝密・高手挑戰<br>深謀遠慮，考驗大局觀！</div>
         </div>
       </div>
 
-      <button class="btn-secondary" onclick="GameApp.showHome()">
-        <span>↩️</span> 返回主選單
+      <!-- 雙人模式快速開始 -->
+      <div id="panel-dual-start" class="dual-start-box" style="display: none;">
+        <div style="font-size: 3.5rem; margin-bottom: 12px;">👥</div>
+        <h2>雙人面對面對弈模式</h2>
+        <p style="color: #d7ccc8; margin: 12px 0 20px;">兩位玩家在同一台 iPad 上輪流翻棋與吃子，第一位翻開的棋子決定陣營！</p>
+        <button class="btn-primary" style="font-size: 1.3rem; padding: 16px 36px;" onclick="GameApp.startDualGameDirect()">
+          <span>⚔️</span> 開始雙人對決！
+        </button>
+      </div>
+
+      <button class="btn-secondary" style="margin-top: 16px;" onclick="GameApp.showHome()">
+        <span>↩️</span> 返回選擇玩法
       </button>
     </section>
 
-    <!-- 畫面 3：遊戲盤面 (4x8) -->
+    <!-- 畫面 3：遊戲主盤面 (4x8) -->
     <section id="screen-game" class="view-screen">
       <header class="game-header">
         <div class="player-info-box" id="info-p1">
@@ -83,7 +122,7 @@
           </div>
         </div>
 
-        <div style="font-weight: 900; color: #ffca28; font-size: 1.2rem;">VS</div>
+        <div class="center-mode-tag" id="game-active-mode-tag">🔥 連棋 (連吃)</div>
 
         <div class="player-info-box" id="info-p2">
           <div class="player-meta" style="text-align: right;">
@@ -94,16 +133,16 @@
         </div>
 
         <div class="game-quick-tools">
-          <button class="icon-btn" title="規則提示" onclick="GameApp.openRules()">📖</button>
+          <button class="icon-btn" title="規則說明" onclick="GameApp.openRules()">📖</button>
           <button class="icon-btn" id="btn-ingame-sound" title="切換音效" onclick="GameApp.toggleSound()">🔊</button>
           <button class="icon-btn" title="重新一局" onclick="GameApp.restartCurrentGame()">🔄</button>
           <button class="icon-btn" title="回主選單" onclick="GameApp.showHome()">🏠</button>
         </div>
       </header>
 
-      <!-- 連吃 COMBO 橫幅 -->
+      <!-- 連吃 COMBO 橫幅 (連棋模式專用) -->
       <div id="combo-banner">
-        <span id="combo-text">🔥 連吃 COMBO x2！繼續吃子！</span>
+        <span id="combo-text">🔥 連吃 COMBO x2！可連續吃相鄰敵棋！</span>
         <button class="btn-end-combo" onclick="GameApp.finishCombo()">完成連吃 (結束回合)</button>
       </div>
 
@@ -115,7 +154,7 @@
       </div>
 
       <!-- 狀態提示列 -->
-      <div style="margin: 8px 0; text-align: center; color: #ffe082; font-weight: bold; font-size: 1.05rem;" id="game-status-tip">
+      <div id="game-status-tip" class="status-tip-bar">
         提示：點擊暗棋翻開，或點擊自己的明棋移動與吃子
       </div>
 
@@ -151,34 +190,47 @@
             <span>👥</span> 換個對手挑戰
           </button>
           <button class="btn-secondary" onclick="GameApp.showHome()">
-            <span>🏠</span> 返回主選單
+            <span>🏠</span> 切換玩法選單
           </button>
         </div>
       </div>
     </div>
 
-    <!-- 彈窗 2：連棋規則完整說明 -->
+    <!-- 彈窗 2：完整規則說明 (分頁切換) -->
     <div id="modal-rules" class="modal-overlay">
-      <div class="modal-content" style="max-width: 620px;">
-        <h2 class="modal-title">📖 連棋遊戲玩法與規則</h2>
-        <div class="rules-body">
-          <h3>🎯 凱文 5 大核心規則</h3>
+      <div class="modal-content" style="max-width: 680px;">
+        <h2 class="modal-title">📖 象棋玩法與規則說明</h2>
+        
+        <div class="rules-tabs-nav">
+          <button id="tab-btn-rule-lianqi" class="tab-btn active" onclick="GameApp.switchRulesTab('lianqi')">🔥 連棋模式規則</button>
+          <button id="tab-btn-rule-banqi" class="tab-btn" onclick="GameApp.switchRulesTab('banqi')">🎯 傳統暗棋規則</button>
+        </div>
+
+        <div id="rule-content-lianqi" class="rules-body">
+          <h3>⚡ 連棋模式（連吃 Combo 爽快版）特點：</h3>
           <ul>
             <li><span class="rule-highlight">同階互吃</span>：相等的同階級也可以互相吃！（例如士吃士、車吃車、兵吃兵）</li>
             <li><span class="rule-highlight">士不能吃將</span>：黑士可吃紅士與士以下各階，<strong style="color:#ff5252;">但絕對不能吃將/帥</strong>！</li>
             <li><span class="rule-highlight">卒可吃帥、兵可吃將</span>：黑卒可以吃紅帥，紅兵可以吃黑將！（小兵立大功）</li>
-            <li><span class="rule-highlight">炮可跳吃未翻開</span>：炮隔著任一棋子（炮台），可以跳吃任何敵方棋子，<strong style="color:#ffeb3b;">即使未翻開也可以直接跳吃！</strong></li>
+            <li><span class="rule-highlight">炮可跳吃暗棋</span>：炮隔著任一棋子（炮台），可以跳吃任何敵方棋子，<strong style="color:#ffeb3b;">即使未翻開也可以直接跳吃！</strong></li>
+            <li><span class="rule-highlight">連吃（Combo）</span>：吃子後若新位置周圍還有合法可吃之敵棋，可以<strong>不限次數連續吃下去</strong>！</li>
           </ul>
+        </div>
 
-          <h3>⚡ 連吃（Combo）爽快玩法</h3>
+        <div id="rule-content-banqi" class="rules-body" style="display: none;">
+          <h3>🎯 傳統經典暗棋特點：</h3>
           <ul>
-            <li>吃掉一顆棋子後，如果新位置周圍還有可以吃的小棋子，可以<span class="rule-highlight">連續吃下去</span>！</li>
-            <li>想要停手時，隨時點擊「完成連吃」就能結束回合喔！</li>
+            <li><span class="rule-highlight">一回合一步</span>：每回合嚴格只能進行一個動作（翻一顆暗棋、移動一步、或吃一顆敵棋）。</li>
+            <li><span class="rule-highlight">吃子即換手</span>：吃子後<strong>立即結束回合</strong>換對方走，不可連吃。</li>
+            <li><span class="rule-highlight">炮翻山跳吃明棋</span>：同一直線隔一子跳吃已翻開之敵方明棋。</li>
+            <li><span class="rule-highlight">階級尊卑</span>：帥將 ＞ 仕士 ＞ 相象 ＞ 俥車 ＞ 傌馬 ＞ 炮包 ＞ 兵卒（兵卒剋帥將，同階互吃）。</li>
           </ul>
+        </div>
 
-          <h3>👑 棋子大小順序（由大到小）</h3>
-          <p>帥/將 ＞ 仕/士 ＞ 相/象 ＞ 俥/車 ＞ 傌/馬 ＞ 炮/包 ＞ 兵/卒</p>
-          <p style="font-size:0.85rem; color:#bcaaa4; margin-top:4px;">（註：帥將雖大不能吃兵卒；炮跳吃無階級限制；同階可互吃）</p>
+        <div class="rules-rank-box">
+          <strong>👑 棋子大小順序（由大到小）：</strong><br>
+          帥/將 ＞ 仕/士 ＞ 相/象 ＞ 俥/車 ＞ 傌/馬 ＞ 炮/包 ＞ 兵/卒
+          <div style="font-size: 0.85rem; color: #bcaaa4; margin-top: 4px;">（帥將不吃兵卒；兵卒可吃帥將；同階可互吃）</div>
         </div>
 
         <div class="modal-actions" style="margin-top: 18px;">

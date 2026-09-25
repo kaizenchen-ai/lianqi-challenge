@@ -1,16 +1,15 @@
 /**
- * 連棋大挑戰 (Lianqi Challenge) - V6.2 完整規則精準版
- * 專為一年級學童與家長量身打造・iPad 觸控流暢優化
- * 核心特色：
- * 1. 凱文 5 大明示規則（同階互吃、士不吃將、兵卒吃將帥、炮隔子跳吃暗棋、連吃Combo）
- * 2. 8 大面向完整暗棋規則（困斃判定、30步無吃子和棋、陣營動態判定、雙向切換選取、點擊自棋結束連吃）
- * 3. 4 大個性 AI (Eric, Ana, Davis, Michelle) + 雙人對戰模式
+ * 象棋大對決 (Xiangqi Battle) - 連棋與傳統暗棋雙模式版 (V7.0)
+ * 支援：
+ * 1. 🔥 連棋模式（連吃 Combo 爽快版・支援同階互吃、士不吃將、卒吃帥、炮跳吃暗棋、連吃不限次數）
+ * 2. 🎯 傳統暗棋（經典一步棋版・一回合一步、吃子即換手、炮跳吃明棋）
+ * 3. 🤖 單人對戰 4 位個性化 AI (Eric, Ana, Davis, Michelle) + 👥 雙人面對面對局
  * 4. 8 Voice 雙語音揭曉 (先媽媽鼓勵 -> 後爸爸複盤引導)
  */
 
 const GameApp = (() => {
   // --- 棋子階級設定 ---
-  // 階級 (Rank): 7: 帥/將, 6: 仕/士, 5: 相/象, 4: 俥/車, 3: 傌/馬, 2: 炮/包, 1: 兵/卒
+  // Rank: 7: 帥/將, 6: 仕/士, 5: 相/象, 4: 俥/車, 3: 傌/馬, 2: 炮/包, 1: 兵/卒
   const PIECE_DEFS = {
     red: [
       { name: '帥', rank: 7, count: 1, isCannon: false },
@@ -33,7 +32,7 @@ const GameApp = (() => {
   };
 
   const OPPONENT_PROFILES = {
-    eric: { name: '男同學 (Eric)', avatar: '👦', desc: '活潑開朗・入門練習', level: 1 },
+    eric: { name: '男同學 (Eric)', avatar: '👦', desc: '入門練習・活潑開朗', level: 1 },
     ana: { name: '女同學 (Ana)', avatar: '👧', desc: '機智靈活・穩健防守', level: 2 },
     davis: { name: '爸爸 (Davis)', avatar: '👨', desc: '沉著老練・車馬炮佈局', level: 3 },
     michelle: { name: '媽媽 (Michelle)', avatar: '👩', desc: '細心縝密・高手挑戰', level: 4 }
@@ -60,21 +59,22 @@ const GameApp = (() => {
   let audioContext = null;
   let currentAudio = null;
 
-  let mode = 'single'; // 'single' | 'dual'
+  let ruleMode = 'lianqi'; // 'lianqi' (連棋/連吃) | 'banqi' (傳統暗棋/一步棋)
+  let playType = 'single'; // 'single' (單人AI) | 'dual' (雙人)
   let opponentKey = 'eric';
 
   const ROWS = 4;
   const COLS = 8;
-  let board = []; // [ROWS][COLS]
-  let playerColor = null; // 'red' | 'black' (第一翻決定 P1 / 玩家顏色)
-  let opponentColor = null; // 'red' | 'black' (P2 / 電腦顏色)
-  let currentTurn = 'player'; // 'player' | 'opponent' (單人) 或 'p1' | 'p2' (雙人)
-  let selectedPos = null; // { r, c }
-  let validTargets = []; // [{ r, c, type: 'move'|'capture'|'cannon_unrevealed' }]
+  let board = [];
+  let playerColor = null;
+  let opponentColor = null;
+  let currentTurn = 'player';
+  let selectedPos = null;
+  let validTargets = [];
   let comboActive = false;
   let comboPos = null;
   let comboCount = 0;
-  let consecutiveNoCapture = 0; // 連續無吃子回合計數
+  let consecutiveNoCapture = 0;
   let deadPieces = { red: [], black: [] };
   let isGameOver = false;
 
@@ -104,7 +104,6 @@ const GameApp = (() => {
       gain.connect(audioContext.destination);
 
       if (type === 'flip') {
-        // 木片翻牌清脆聲
         osc.type = 'triangle';
         osc.frequency.setValueAtTime(340, now);
         osc.frequency.exponentialRampToValueAtTime(160, now + 0.12);
@@ -113,7 +112,6 @@ const GameApp = (() => {
         osc.start(now);
         osc.stop(now + 0.12);
       } else if (type === 'move') {
-        // 落子沉著木質敲擊聲
         osc.type = 'sine';
         osc.frequency.setValueAtTime(200, now);
         osc.frequency.exponentialRampToValueAtTime(90, now + 0.14);
@@ -122,7 +120,6 @@ const GameApp = (() => {
         osc.start(now);
         osc.stop(now + 0.14);
       } else if (type === 'capture') {
-        // 吃子爽快撞擊
         osc.type = 'square';
         osc.frequency.setValueAtTime(480, now);
         osc.frequency.exponentialRampToValueAtTime(140, now + 0.22);
@@ -131,7 +128,6 @@ const GameApp = (() => {
         osc.start(now);
         osc.stop(now + 0.22);
       } else if (type === 'combo') {
-        // 連吃清脆四音階上升
         const freqs = [350, 440, 560, 700];
         freqs.forEach((freq, idx) => {
           const o = audioContext.createOscillator();
@@ -146,7 +142,6 @@ const GameApp = (() => {
           o.stop(now + idx * 0.08 + 0.16);
         });
       } else if (type === 'win') {
-        // 勝利大三和弦
         const notes = [261.63, 329.63, 392.00, 523.25];
         notes.forEach((freq, idx) => {
           const o = audioContext.createOscillator();
@@ -161,7 +156,6 @@ const GameApp = (() => {
           o.stop(now + idx * 0.1 + 0.45);
         });
       } else if (type === 'lose') {
-        // 安慰和弦
         const notes = [392.00, 329.63, 261.63];
         notes.forEach((freq, idx) => {
           const o = audioContext.createOscillator();
@@ -219,7 +213,7 @@ const GameApp = (() => {
     if (statusCallback) statusCallback('');
   }
 
-  // --- 畫面導覽 ---
+  // --- 畫面導覽與模式切換 ---
   function showScreen(screenId) {
     document.querySelectorAll('.view-screen').forEach(el => el.classList.remove('active'));
     const target = document.getElementById(screenId);
@@ -231,21 +225,89 @@ const GameApp = (() => {
     showScreen('screen-home');
   }
 
+  function chooseRuleMode(mode) {
+    ruleMode = mode;
+    initAudioContext();
+    playSynthSfx('move');
+    const indicator = document.getElementById('opponents-rule-indicator');
+    if (indicator) {
+      indicator.textContent = (ruleMode === 'lianqi') ? '當前玩法：🔥 連棋大挑戰 (連吃版)' : '當前玩法：🎯 傳統經典暗棋 (一步棋版)';
+    }
+    showOpponents();
+  }
+
   function showOpponents() {
     closeModals();
     showScreen('screen-opponents');
+  }
+
+  function setPlayType(type) {
+    playType = type;
+    initAudioContext();
     playSynthSfx('move');
+
+    const btnSingle = document.getElementById('btn-tab-single');
+    const btnDual = document.getElementById('btn-tab-dual');
+    const pnlSingle = document.getElementById('panel-single-opponents');
+    const pnlDual = document.getElementById('panel-dual-start');
+
+    if (type === 'single') {
+      if (btnSingle) btnSingle.classList.add('active');
+      if (btnDual) btnDual.classList.remove('active');
+      if (pnlSingle) pnlSingle.style.display = 'grid';
+      if (pnlDual) pnlDual.style.display = 'none';
+    } else {
+      if (btnSingle) btnSingle.classList.remove('active');
+      if (btnDual) btnDual.classList.add('active');
+      if (pnlSingle) pnlSingle.style.display = 'none';
+      if (pnlDual) pnlDual.style.display = 'block';
+    }
+  }
+
+  function selectOpponent(key) {
+    playType = 'single';
+    opponentKey = key;
+    initAudioContext();
+    playAudioFile(AUDIO_FILES.ready_aria);
+    startNewGame();
+  }
+
+  function startDualGameDirect() {
+    playType = 'dual';
+    initAudioContext();
+    playAudioFile(AUDIO_FILES.intro_jenny);
+    startNewGame();
   }
 
   function openRules() {
     initAudioContext();
     document.getElementById('modal-rules').classList.add('active');
+    switchRulesTab(ruleMode);
     playSynthSfx('move');
   }
 
   function closeRules() {
     document.getElementById('modal-rules').classList.remove('active');
     playSynthSfx('move');
+  }
+
+  function switchRulesTab(tab) {
+    const btnLianqi = document.getElementById('tab-btn-rule-lianqi');
+    const btnBanqi = document.getElementById('tab-btn-rule-banqi');
+    const contentLianqi = document.getElementById('rule-content-lianqi');
+    const contentBanqi = document.getElementById('rule-content-banqi');
+
+    if (tab === 'lianqi') {
+      if (btnLianqi) btnLianqi.classList.add('active');
+      if (btnBanqi) btnBanqi.classList.remove('active');
+      if (contentLianqi) contentLianqi.style.display = 'block';
+      if (contentBanqi) contentBanqi.style.display = 'none';
+    } else {
+      if (btnLianqi) btnLianqi.classList.remove('active');
+      if (btnBanqi) btnBanqi.classList.add('active');
+      if (contentLianqi) contentLianqi.style.display = 'none';
+      if (contentBanqi) contentBanqi.style.display = 'block';
+    }
   }
 
   function closeModals() {
@@ -266,22 +328,6 @@ const GameApp = (() => {
     }
   }
 
-  // --- 遊戲初始化 ---
-  function selectOpponent(key) {
-    mode = 'single';
-    opponentKey = key;
-    initAudioContext();
-    playAudioFile(AUDIO_FILES.ready_aria);
-    startNewGame();
-  }
-
-  function startDualMode() {
-    mode = 'dual';
-    initAudioContext();
-    playAudioFile(AUDIO_FILES.intro_jenny);
-    startNewGame();
-  }
-
   function restartCurrentGame() {
     closeModals();
     startNewGame();
@@ -292,7 +338,7 @@ const GameApp = (() => {
     isGameOver = false;
     playerColor = null;
     opponentColor = null;
-    currentTurn = (mode === 'single') ? 'player' : 'p1';
+    currentTurn = (playType === 'single') ? 'player' : 'p1';
     selectedPos = null;
     validTargets = [];
     comboActive = false;
@@ -305,7 +351,9 @@ const GameApp = (() => {
     updateUIHeader();
     renderBoard();
     renderGraveyards();
-    updateStatusTip('🎲 遊戲開始！請點擊任意一顆未翻開的暗棋決定陣營！');
+
+    const modeName = (ruleMode === 'lianqi') ? '🔥 連棋模式 (連吃版)' : '🎯 傳統暗棋 (一步版)';
+    updateStatusTip(`🎲 ${modeName}開始！請點擊任意一顆未翻開的暗棋決定陣營！`);
     showScreen('screen-game');
   }
 
@@ -348,30 +396,27 @@ const GameApp = (() => {
     }
   }
 
-  // --- 連棋核心走法與吃子判定 ---
-  /**
-   * 判定 attacker 棋子是否可吃目標 defender（相鄰一格吃子）
-   */
+  // --- 核心吃子與走法判定 ---
   function canCapture(attacker, defender) {
     if (!attacker || !defender) return false;
-    if (attacker.color === defender.color) return false; // 同陣營不可互吃
+    if (attacker.color === defender.color) return false;
 
-    // 凱文明示規則 2：士/仕不能吃將/帥！
+    // 核心規則：士/仕不能吃將/帥！
     if (attacker.rank === 6 && defender.rank === 7) {
       return false;
     }
 
-    // 凱文明示規則 3 & 4：卒可吃帥、兵可吃將！
+    // 核心規則：卒可吃帥、兵可吃將！
     if (attacker.rank === 1 && defender.rank === 7) {
       return true;
     }
 
-    // 傳統相剋限制：帥將不能吃兵卒
+    // 帥將不能吃兵卒
     if (attacker.rank === 7 && defender.rank === 1) {
       return false;
     }
 
-    // 凱文明示規則 1：同階互吃！
+    // 同階互吃！
     if (attacker.rank === defender.rank) {
       return true;
     }
@@ -380,15 +425,11 @@ const GameApp = (() => {
     return attacker.rank > defender.rank;
   }
 
-  /**
-   * 計算特定棋子在當前盤面上的所有合法移動與吃子
-   */
   function getLegalActionsForPiece(r, c) {
     const cell = board[r][c];
     if (!cell || !cell.revealed || !cell.piece) return [];
     const p = cell.piece;
     const actions = [];
-
     const dirs = [[-1, 0], [1, 0], [0, -1], [0, 1]];
 
     if (!p.isCannon) {
@@ -399,22 +440,18 @@ const GameApp = (() => {
         if (nr >= 0 && nr < ROWS && nc >= 0 && nc < COLS) {
           const targetCell = board[nr][nc];
           if (!targetCell.piece) {
-            // 空格移動（連吃進行中不可走空格）
             if (!comboActive) {
               actions.push({ r: nr, c: nc, type: 'move' });
             }
           } else if (targetCell.revealed) {
-            // 已翻開的敵方棋子
             if (targetCell.piece.color !== p.color && canCapture(p, targetCell.piece)) {
               actions.push({ r: nr, c: nc, type: 'capture' });
             }
           }
-          // 普通棋子不可吃未翻開暗棋
         }
       }
     } else {
-      // 2. 炮 (包) 的特殊規則
-      // 走法：相鄰走 1 格空格 (無吃子，且非連吃中)
+      // 2. 炮 (包)
       if (!comboActive) {
         for (const [dr, dc] of dirs) {
           const nr = r + dr;
@@ -427,7 +464,7 @@ const GameApp = (() => {
         }
       }
 
-      // 吃法：同一直線或橫線上，隔恰好 1 顆棋子（炮台）翻山跳吃
+      // 跳吃判定
       for (const [dr, dc] of dirs) {
         let pieceCount = 0;
         let step = 1;
@@ -440,17 +477,17 @@ const GameApp = (() => {
           if (currCell.piece) {
             pieceCount++;
             if (pieceCount === 2) {
-              // 找到目標棋子！
               if (currCell.revealed) {
-                // 已翻開：若是敵方棋子，直接吃！（不限階級，1~7 全可吃）
                 if (currCell.piece.color !== p.color) {
                   actions.push({ r: nr, c: nc, type: 'capture' });
                 }
               } else {
-                // 凱文明示規則 5：炮可隔一子跳吃未翻開暗棋！
-                actions.push({ r: nr, c: nc, type: 'cannon_unrevealed' });
+                // 連棋模式下：炮可隔一子跳吃未翻開暗棋！傳統暗棋模式下不可跳吃暗棋
+                if (ruleMode === 'lianqi') {
+                  actions.push({ r: nr, c: nc, type: 'cannon_unrevealed' });
+                }
               }
-              break; // 隔一子只能吃第一顆目標
+              break;
             }
           }
           step++;
@@ -461,18 +498,13 @@ const GameApp = (() => {
     return actions;
   }
 
-  /**
-   * 檢查盤面上特定陣營是否還有任何合法動作（翻暗棋 或 移動/吃子）
-   */
   function hasAnyLegalAction(color) {
     if (!color) return true;
-    // 1. 是否還有暗棋可翻
     for (let r = 0; r < ROWS; r++) {
       for (let c = 0; c < COLS; c++) {
         if (!board[r][c].revealed) return true;
       }
     }
-    // 2. 是否有該顏色的明棋可走或可吃
     for (let r = 0; r < ROWS; r++) {
       for (let c = 0; c < COLS; c++) {
         const cell = board[r][c];
@@ -485,40 +517,35 @@ const GameApp = (() => {
     return false;
   }
 
-  // --- 玩家點擊處理 ---
+  // --- 點擊處理 ---
   function onCellClicked(r, c) {
     if (isGameOver) return;
     initAudioContext();
 
-    // 單人模式若非玩家回合，禁止點擊
-    if (mode === 'single' && currentTurn === 'opponent') return;
+    if (playType === 'single' && currentTurn === 'opponent') return;
 
     const cell = board[r][c];
 
-    // 情況 A：如果目前處於連吃中
+    // 連吃進行中
     if (comboActive) {
       if (comboPos && comboPos.r === r && comboPos.c === c) {
-        // 點擊自身：意即「結束連吃 / 完成回合」
-        updateStatusTip('✨ 結束連吃！回合換手。');
+        updateStatusTip('✨ 結束連吃！換對方行動。');
         finishCombo();
         return;
       }
 
-      // 檢查是否點擊合法吃子目標
       const match = validTargets.find(t => t.r === r && t.c === c && (t.type === 'capture' || t.type === 'cannon_unrevealed'));
       if (match) {
         executeCaptureOrMove(comboPos.r, comboPos.c, match);
       } else {
-        // 點擊其他非攻擊格：也視為結束連吃
-        updateStatusTip('✨ 結束連吃！回合換手。');
+        updateStatusTip('✨ 結束連吃！換對方行動。');
         finishCombo();
       }
       return;
     }
 
-    // 情況 B：點擊尚未翻開的暗棋
+    // 點擊暗棋
     if (!cell.revealed) {
-      // 若當前選取的炮能跳吃該暗棋
       if (selectedPos) {
         const cannonMatch = validTargets.find(t => t.r === r && t.c === c && t.type === 'cannon_unrevealed');
         if (cannonMatch) {
@@ -526,15 +553,13 @@ const GameApp = (() => {
           return;
         }
       }
-      // 否則：翻開此暗棋！
       executeFlip(r, c);
       return;
     }
 
-    // 情況 C：點擊已翻開的格子
+    // 點擊已翻開棋子
     const activeColor = getCurrentTurnColor();
 
-    // 若點擊的是合法目標（移動或吃子）
     if (selectedPos) {
       const matchAction = validTargets.find(t => t.r === r && t.c === c);
       if (matchAction) {
@@ -543,10 +568,9 @@ const GameApp = (() => {
       }
     }
 
-    // 點擊自己的棋子進行選取（或切換/取消選取）
+    // 選取自己的棋子（支援再次點擊取消選取）
     if (cell.piece && cell.piece.color === activeColor) {
       if (selectedPos && selectedPos.r === r && selectedPos.c === c) {
-        // 再次點擊已選中的自己棋子 ➔ 取消選取 (Toggle Off)
         selectedPos = null;
         validTargets = [];
         renderBoard();
@@ -567,7 +591,6 @@ const GameApp = (() => {
       return;
     }
 
-    // 點擊空地或其他無效處：取消選取
     selectedPos = null;
     validTargets = [];
     renderBoard();
@@ -579,26 +602,17 @@ const GameApp = (() => {
     cell.revealed = true;
     selectedPos = null;
     validTargets = [];
-    consecutiveNoCapture = 0; // 翻牌重置無吃子計數
+    consecutiveNoCapture = 0;
     playSynthSfx('flip');
 
-    // 若為第一翻：決定陣營
     if (playerColor === null) {
-      if (mode === 'single') {
-        playerColor = cell.piece.color;
-        opponentColor = (playerColor === 'red') ? 'black' : 'red';
-      } else {
-        // 雙人模式：P1 翻出顏色即為 P1
-        playerColor = cell.piece.color;
-        opponentColor = (playerColor === 'red') ? 'black' : 'red';
-      }
+      playerColor = cell.piece.color;
+      opponentColor = (playerColor === 'red') ? 'black' : 'red';
     }
 
     updateUIHeader();
     renderBoard();
     updateStatusTip(`✨ 翻開了！這是一顆【${cell.piece.color === 'red' ? '紅' : '黑'}・${cell.piece.name}】！`);
-
-    // 翻牌結束此回合
     endTurn();
   }
 
@@ -611,7 +625,6 @@ const GameApp = (() => {
     validTargets = [];
 
     if (action.type === 'move') {
-      // 純移動
       toCell.piece = attacker;
       toCell.revealed = true;
       fromCell.piece = null;
@@ -629,14 +642,13 @@ const GameApp = (() => {
       return;
     }
 
-    // 炮跳吃暗棋
+    // 炮跳打暗棋 (連棋模式特權)
     if (action.type === 'cannon_unrevealed') {
       toCell.revealed = true;
       const targetPiece = toCell.piece;
       consecutiveNoCapture = 0;
 
       if (targetPiece.color !== attacker.color) {
-        // 敵方暗棋：擊殺吃掉！
         deadPieces[targetPiece.color].push(targetPiece.name);
         toCell.piece = attacker;
         fromCell.piece = null;
@@ -644,7 +656,6 @@ const GameApp = (() => {
         updateStatusTip(`💥 炮翻山跳吃！成功擊殺敵方未翻開的【${targetPiece.name}】！`);
         checkComboOrEndTurn(action.r, action.c);
       } else {
-        // 己方暗棋：揭曉該己方棋子，炮退回原位（不自殘）
         playSynthSfx('flip');
         updateStatusTip(`🛡️ 炮跳過去揭曉發現是自己人的【${targetPiece.name}】！揭曉成功，炮返回原位。`);
         renderBoard();
@@ -654,7 +665,7 @@ const GameApp = (() => {
       return;
     }
 
-    // 一般吃子或炮吃明棋
+    // 一般吃子
     if (action.type === 'capture') {
       const captured = toCell.piece;
       deadPieces[captured.color].push(captured.name);
@@ -675,20 +686,25 @@ const GameApp = (() => {
     }
   }
 
-  // --- 連吃 (Combo) 機制 ---
+  // --- 連吃檢查（依據玩法模式） ---
   function checkComboOrEndTurn(newR, newC) {
     renderBoard();
     renderGraveyards();
 
     if (checkGameOverCondition()) return;
 
-    // 檢查在新位置是否還能繼續連吃
+    // 若為傳統暗棋模式：吃子後「嚴格不連吃」，直接換手
+    if (ruleMode === 'banqi') {
+      endTurn();
+      return;
+    }
+
+    // 連棋模式：檢查是否能連吃
     comboActive = true;
     const nextActions = getLegalActionsForPiece(newR, newC);
     const capturableTargets = nextActions.filter(a => a.type === 'capture' || a.type === 'cannon_unrevealed');
 
     if (capturableTargets.length > 0) {
-      // 觸發連吃！
       comboCount++;
       comboPos = { r: newR, c: newC };
       validTargets = capturableTargets;
@@ -698,7 +714,7 @@ const GameApp = (() => {
       showComboBanner(true, comboCount);
       renderBoard();
 
-      if (mode === 'single' && currentTurn === 'opponent') {
+      if (playType === 'single' && currentTurn === 'opponent') {
         setTimeout(() => executeAiComboMove(), 750);
       } else {
         updateStatusTip(`🔥 連吃 COMBO x${comboCount + 1}！點擊 ⚔️ 繼續吃子，或點選自身棋子/按鈕結束回合！`);
@@ -741,7 +757,7 @@ const GameApp = (() => {
 
     if (checkGameOverCondition()) return;
 
-    if (mode === 'single') {
+    if (playType === 'single') {
       currentTurn = (currentTurn === 'player') ? 'opponent' : 'player';
     } else {
       currentTurn = (currentTurn === 'p1') ? 'p2' : 'p1';
@@ -750,10 +766,10 @@ const GameApp = (() => {
     updateUIHeader();
     renderBoard();
 
-    // 困斃判定：若換手後的行動方無任何暗棋可翻且無任何明棋可動，判定輸局
+    // 困斃判定
     const nextTurnColor = getCurrentTurnColor();
     if (nextTurnColor && !hasAnyLegalAction(nextTurnColor)) {
-      if (mode === 'single') {
+      if (playType === 'single') {
         if (currentTurn === 'opponent') {
           triggerGameOver('player', '對手已無暗棋可翻且無棋可走（困斃）！你獲勝了！');
         } else {
@@ -767,7 +783,7 @@ const GameApp = (() => {
     }
 
     // 單人模式電腦回合
-    if (mode === 'single' && currentTurn === 'opponent') {
+    if (playType === 'single' && currentTurn === 'opponent') {
       updateStatusTip(`🤔 ${OPPONENT_PROFILES[opponentKey].name} 正在思考中...`);
       setTimeout(() => executeAiTurn(), 650);
     }
@@ -775,7 +791,7 @@ const GameApp = (() => {
 
   function getCurrentTurnColor() {
     if (playerColor === null) return null;
-    if (mode === 'single') {
+    if (playType === 'single') {
       return (currentTurn === 'player') ? playerColor : opponentColor;
     } else {
       return (currentTurn === 'p1') ? playerColor : opponentColor;
@@ -789,7 +805,6 @@ const GameApp = (() => {
     const aiColor = opponentColor;
     const aiLevel = OPPONENT_PROFILES[opponentKey].level;
 
-    // 收集所有未翻開暗棋
     const unrevealedCells = [];
     for (let r = 0; r < ROWS; r++) {
       for (let c = 0; c < COLS; c++) {
@@ -799,7 +814,6 @@ const GameApp = (() => {
       }
     }
 
-    // 收集 AI 所有明棋的合法動作
     const allActions = [];
     for (let r = 0; r < ROWS; r++) {
       for (let c = 0; c < COLS; c++) {
@@ -817,7 +831,7 @@ const GameApp = (() => {
     const cannonUnrevealed = allActions.filter(x => x.action.type === 'cannon_unrevealed');
     const normalMoves = allActions.filter(x => x.action.type === 'move');
 
-    // Eric (Level 1): 入門・隨機翻牌與吃子
+    // Level 1 (Eric)
     if (aiLevel === 1) {
       if (unrevealedCells.length > 0 && Math.random() < 0.55) {
         const pick = unrevealedCells[Math.floor(Math.random() * unrevealedCells.length)];
@@ -841,7 +855,7 @@ const GameApp = (() => {
       }
     }
 
-    // Ana (Level 2), Davis (Level 3), Michelle (Level 4): 智慧優先吃高價值目標
+    // Level 2, 3, 4
     if (captures.length > 0) {
       captures.sort((a, b) => {
         const targetA = board[a.action.r][a.action.c].piece;
@@ -855,39 +869,33 @@ const GameApp = (() => {
       return;
     }
 
-    // 炮跳打暗棋
     if (cannonUnrevealed.length > 0 && (aiLevel >= 3 || Math.random() < 0.45)) {
       const pick = cannonUnrevealed[Math.floor(Math.random() * cannonUnrevealed.length)];
       executeCaptureOrMove(pick.fromR, pick.fromC, pick.action);
       return;
     }
 
-    // 翻牌
     if (unrevealedCells.length > 0 && (normalMoves.length === 0 || Math.random() < 0.5)) {
       const pick = unrevealedCells[Math.floor(Math.random() * unrevealedCells.length)];
       executeFlip(pick.r, pick.c);
       return;
     }
 
-    // 走子移動
     if (normalMoves.length > 0) {
       const pick = normalMoves[Math.floor(Math.random() * normalMoves.length)];
       executeCaptureOrMove(pick.fromR, pick.fromC, pick.action);
       return;
     }
 
-    // 最後翻牌
     if (unrevealedCells.length > 0) {
       const pick = unrevealedCells[Math.floor(Math.random() * unrevealedCells.length)];
       executeFlip(pick.r, pick.c);
       return;
     }
 
-    // 無處可走 ➔ 困斃
     triggerGameOver('player', '對手已無棋可走（困斃）！你獲勝了！');
   }
 
-  // AI 連吃決策
   function executeAiComboMove() {
     if (!comboActive || !comboPos) return;
     const actions = getLegalActionsForPiece(comboPos.r, comboPos.c);
@@ -908,7 +916,7 @@ const GameApp = (() => {
     }
   }
 
-  // --- 勝負與殘局判定 ---
+  // --- 勝負判定 ---
   function checkGameOverCondition() {
     if (playerColor === null) return false;
 
@@ -942,7 +950,6 @@ const GameApp = (() => {
     return false;
   }
 
-  // --- 遊戲結束結算與雙人語音播報 ---
   function triggerGameOver(winnerSide, reasonDesc) {
     isGameOver = true;
     const modal = document.getElementById('modal-gameover');
@@ -961,7 +968,7 @@ const GameApp = (() => {
       return;
     }
 
-    const isPlayerWin = (mode === 'single' && winnerSide === 'player') || (mode === 'dual' && winnerSide === 'p1');
+    const isPlayerWin = (playType === 'single' && winnerSide === 'player') || (playType === 'dual' && winnerSide === 'p1');
 
     if (isPlayerWin) {
       playSynthSfx('win');
@@ -1017,12 +1024,23 @@ const GameApp = (() => {
     const p2Name = document.getElementById('name-p2');
     const p2Turn = document.getElementById('turn-p2');
 
-    const isP1Turn = (mode === 'single') ? (currentTurn === 'player') : (currentTurn === 'p1');
+    const modeTag = document.getElementById('game-active-mode-tag');
+    if (modeTag) {
+      if (ruleMode === 'lianqi') {
+        modeTag.className = 'center-mode-tag';
+        modeTag.textContent = '🔥 連棋 (連吃)';
+      } else {
+        modeTag.className = 'center-mode-tag classic';
+        modeTag.textContent = '🎯 暗棋 (傳統)';
+      }
+    }
+
+    const isP1Turn = (playType === 'single') ? (currentTurn === 'player') : (currentTurn === 'p1');
 
     const p1ColorStr = playerColor ? (playerColor === 'red' ? '🔴 紅方' : '⚫ 黑方') : '❓ 陣營待定';
     const p2ColorStr = opponentColor ? (opponentColor === 'red' ? '🔴 紅方' : '⚫ 黑方') : '❓ 陣營待定';
 
-    if (mode === 'single') {
+    if (playType === 'single') {
       const opp = OPPONENT_PROFILES[opponentKey];
       if (p1Badge) p1Badge.textContent = '🧑';
       if (p1Name) p1Name.textContent = '玩家 (你)';
@@ -1075,7 +1093,6 @@ const GameApp = (() => {
         cellDiv.dataset.col = c;
         cellDiv.onclick = () => onCellClicked(r, c);
 
-        // 標記有效目標
         const validAction = validTargets.find(t => t.r === r && t.c === c);
         if (validAction) {
           if (validAction.type === 'move') {
@@ -1085,7 +1102,6 @@ const GameApp = (() => {
           }
         }
 
-        // 棋子渲染
         if (cell.piece) {
           const pieceDiv = document.createElement('div');
           pieceDiv.className = 'piece';
@@ -1097,7 +1113,6 @@ const GameApp = (() => {
             pieceDiv.textContent = cell.piece.name;
           }
 
-          // 選取高亮
           if (selectedPos && selectedPos.r === r && selectedPos.c === c) {
             pieceDiv.classList.add('selected');
           }
@@ -1127,18 +1142,20 @@ const GameApp = (() => {
     }
   }
 
-  // 頁面初次點擊解鎖音效（相容 iPad Safari AudioContext）
   window.addEventListener('touchstart', initAudioContext, { once: true, passive: true });
   window.addEventListener('click', initAudioContext, { once: true, passive: true });
 
   return {
     showHome,
     showOpponents,
+    chooseRuleMode,
+    setPlayType,
+    selectOpponent,
+    startDualGameDirect,
     openRules,
     closeRules,
+    switchRulesTab,
     toggleSound,
-    selectOpponent,
-    startDualMode,
     restartCurrentGame,
     finishCombo
   };
