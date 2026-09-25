@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <title>連棋大挑戰 🎲 (iPad 優化一次到位版)</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div id="app-container">
+
+    <!-- 畫面 1：首頁選單 -->
+    <section id="screen-home" class="view-screen active">
+      <h1 class="game-title">🎲 連棋大挑戰 🎲</h1>
+      <p class="sub-title">專為小朋友量身打造・翻棋、吃子、超爽快連續連吃！</p>
+      
+      <div class="menu-buttons">
+        <button id="btn-mode-single" class="btn-primary" onclick="GameApp.showOpponents()">
+          <span>🤖</span> 單人遊戲 (VS 電腦)
+        </button>
+        <button id="btn-mode-dual" class="btn-primary" onclick="GameApp.startDualMode()">
+          <span>👥</span> 雙人遊戲 (輪流對戰)
+        </button>
+        <button class="btn-secondary" onclick="GameApp.openRules()">
+          <span>📖</span> 連棋遊戲玩法與規則
+        </button>
+        <button id="btn-toggle-sound" class="btn-secondary" onclick="GameApp.toggleSound()">
+          <span id="sound-icon">🔊</span> 語音音效：開
+        </button>
+      </div>
+    </section>
+
+    <!-- 畫面 2：單人模式選擇對手 -->
+    <section id="screen-opponents" class="view-screen">
+      <h1 class="game-title">選擇你的對手</h1>
+      <p class="sub-title">選一個你想要對戰的好朋友或家人吧！</p>
+      
+      <div class="opponent-grid">
+        <div class="opponent-card" onclick="GameApp.selectOpponent('eric')">
+          <div class="opponent-avatar">👦</div>
+          <div class="opponent-name">男同學</div>
+          <div class="opponent-code">(Eric)</div>
+          <div class="opponent-desc">入門練習・活潑開朗<br>適合新手熟悉翻棋節奏！</div>
+        </div>
+
+        <div class="opponent-card" onclick="GameApp.selectOpponent('ana')">
+          <div class="opponent-avatar">👧</div>
+          <div class="opponent-name">女同學</div>
+          <div class="opponent-code">(Ana)</div>
+          <div class="opponent-desc">靈活機智・穩扎穩打<br>注意不要被她的連吃嚇到喔！</div>
+        </div>
+
+        <div class="opponent-card" onclick="GameApp.selectOpponent('davis')">
+          <div class="opponent-avatar">👨</div>
+          <div class="opponent-name">爸爸</div>
+          <div class="opponent-code">(Davis)</div>
+          <div class="opponent-desc">沉著老練・棋藝高超<br>善用車馬炮佈局與進攻！</div>
+        </div>
+
+        <div class="opponent-card" onclick="GameApp.selectOpponent('michelle')">
+          <div class="opponent-avatar">👩</div>
+          <div class="opponent-name">媽媽</div>
+          <div class="opponent-code">(Michelle)</div>
+          <div class="opponent-desc">細心縝密・高手挑戰<br>深思熟慮，考驗你的專注力！</div>
+        </div>
+      </div>
+
+      <button class="btn-secondary" onclick="GameApp.showHome()">
+        <span>↩️</span> 返回主選單
+      </button>
+    </section>
+
+    <!-- 畫面 3：遊戲盤面 (4x8) -->
+    <section id="screen-game" class="view-screen">
+      <header class="game-header">
+        <div class="player-info-box" id="info-p1">
+          <div class="player-badge" id="badge-p1">🧑</div>
+          <div class="player-meta">
+            <span class="player-role-name" id="name-p1">玩家 1</span>
+            <span class="turn-pill active-turn" id="turn-p1">🔴 思考中...</span>
+          </div>
+        </div>
+
+        <div style="font-weight: 900; color: #ffca28; font-size: 1.2rem;">VS</div>
+
+        <div class="player-info-box" id="info-p2">
+          <div class="player-meta" style="text-align: right;">
+            <span class="player-role-name" id="name-p2">電腦對手</span>
+            <span class="turn-pill wait-turn" id="turn-p2">⚫ 等候中</span>
+          </div>
+          <div class="player-badge" id="badge-p2">🤖</div>
+        </div>
+
+        <div class="game-quick-tools">
+          <button class="icon-btn" title="規則提示" onclick="GameApp.openRules()">📖</button>
+          <button class="icon-btn" id="btn-ingame-sound" title="切換音效" onclick="GameApp.toggleSound()">🔊</button>
+          <button class="icon-btn" title="重新一局" onclick="GameApp.restartCurrentGame()">🔄</button>
+          <button class="icon-btn" title="回主選單" onclick="GameApp.showHome()">🏠</button>
+        </div>
+      </header>
+
+      <!-- 連吃 COMBO 橫幅 -->
+      <div id="combo-banner">
+        <span id="combo-text">🔥 連吃 COMBO x2！繼續吃子！</span>
+        <button class="btn-end-combo" onclick="GameApp.finishCombo()">完成連吃 (結束回合)</button>
+      </div>
+
+      <!-- 4x8 棋盤 -->
+      <div class="board-wrapper">
+        <div class="board-container" id="board-container">
+          <!-- 32 格動態生成 -->
+        </div>
+      </div>
+
+      <!-- 狀態提示列 -->
+      <div style="margin: 8px 0; text-align: center; color: #ffe082; font-weight: bold; font-size: 1.05rem;" id="game-status-tip">
+        提示：點擊暗棋翻開，或點擊自己的明棋移動與吃子
+      </div>
+
+      <!-- 陣亡棋子展示區 (墓地) -->
+      <footer class="graveyard-panel">
+        <div class="graveyard-card">
+          <span class="graveyard-title">🔴 紅方被吃棋子 (<span id="count-dead-red">0</span>)</span>
+          <div class="graveyard-chips" id="chips-dead-red"></div>
+        </div>
+        <div class="graveyard-card">
+          <span class="graveyard-title">⚫ 黑方被吃棋子 (<span id="count-dead-black">0</span>)</span>
+          <div class="graveyard-chips" id="chips-dead-black"></div>
+        </div>
+      </footer>
+    </section>
+
+    <!-- 彈窗 1：遊戲結束結算 -->
+    <div id="modal-gameover" class="modal-overlay">
+      <div class="modal-content">
+        <div class="modal-icon" id="gameover-icon">🎉</div>
+        <h2 class="modal-title" id="gameover-title">恭喜你贏了！</h2>
+        <p class="modal-subtitle" id="gameover-desc">太厲害了！你的棋藝令人驚嘆！</p>
+        
+        <div class="voice-status-box" id="voice-status-box">
+          <span>🎙️</span> <span id="voice-indicator">語音播放中...</span>
+        </div>
+
+        <div class="modal-actions">
+          <button class="btn-primary" onclick="GameApp.restartCurrentGame()">
+            <span>🔄</span> 再玩一局！
+          </button>
+          <button class="btn-secondary" onclick="GameApp.showOpponents()">
+            <span>👥</span> 換個對手挑戰
+          </button>
+          <button class="btn-secondary" onclick="GameApp.showHome()">
+            <span>🏠</span> 返回主選單
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 彈窗 2：連棋規則完整說明 -->
+    <div id="modal-rules" class="modal-overlay">
+      <div class="modal-content" style="max-width: 620px;">
+        <h2 class="modal-title">📖 連棋遊戲玩法與規則</h2>
+        <div class="rules-body">
+          <h3>🎯 凱文 5 大核心規則</h3>
+          <ul>
+            <li><span class="rule-highlight">同階互吃</span>：相等的同階級也可以互相吃！（例如士吃士、車吃車、兵吃兵）</li>
+            <li><span class="rule-highlight">士不能吃將</span>：黑士可吃紅士與士以下各階，<strong style="color:#ff5252;">但絕對不能吃將/帥</strong>！</li>
+            <li><span class="rule-highlight">卒可吃帥、兵可吃將</span>：黑卒可以吃紅帥，紅兵可以吃黑將！（小兵立大功）</li>
+            <li><span class="rule-highlight">炮可跳吃未翻開</span>：炮隔著任一棋子（炮台），可以跳吃任何敵方棋子，<strong style="color:#ffeb3b;">即使未翻開也可以直接跳吃！</strong></li>
+          </ul>
+
+          <h3>⚡ 連吃（Combo）爽快玩法</h3>
+          <ul>
+            <li>吃掉一顆棋子後，如果新位置周圍還有可以吃的小棋子，可以<span class="rule-highlight">連續吃下去</span>！</li>
+            <li>想要停手時，隨時點擊「完成連吃」就能結束回合喔！</li>
+          </ul>
+
+          <h3>👑 棋子大小順序（由大到小）</h3>
+          <p>帥/將 ＞ 仕/士 ＞ 相/象 ＞ 俥/車 ＞ 傌/馬 ＞ 炮/包 ＞ 兵/卒</p>
+          <p style="font-size:0.85rem; color:#bcaaa4; margin-top:4px;">（註：帥將雖大不能吃兵卒；炮跳吃無階級限制；同階可互吃）</p>
+        </div>
+
+        <div class="modal-actions" style="margin-top: 18px;">
+          <button class="btn-primary" onclick="GameApp.closeRules()">
+            <span>👍</span> 我知道了，開始玩！
+          </button>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <script src="game.js"></script>
+</body>
+</html>
