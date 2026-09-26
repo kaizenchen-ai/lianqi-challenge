@@ -685,6 +685,26 @@ h1.game-title {
   animation: pulseSword 0.8s infinite alternate;
 }
 
+.board-cell.valid-blind-capture {
+  background: rgba(255, 152, 0, 0.4);
+  border: 2.5px dashed #ffb300;
+  animation: pulseBlind 1s infinite alternate;
+}
+
+.board-cell.valid-blind-capture::before {
+  content: "⚔️";
+  font-size: clamp(1.2rem, 3vw, 1.6rem);
+  position: absolute;
+  z-index: 6;
+  filter: drop-shadow(0 0 6px #ffeb3b);
+  animation: pulseSword 0.8s infinite alternate;
+}
+
+@keyframes pulseBlind {
+  from { background: rgba(255, 152, 0, 0.25); border-color: #ff9800; }
+  to { background: rgba(255, 193, 7, 0.55); border-color: #ffeb3b; }
+}
+
 @keyframes pulseDot {
   from { transform: scale(0.85); opacity: 0.7; }
   to { transform: scale(1.15); opacity: 1; }

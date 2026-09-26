@@ -447,6 +447,11 @@ const GameApp = (() => {
             if (targetCell.piece.color !== p.color && canCapture(p, targetCell.piece)) {
               actions.push({ r: nr, c: nc, type: 'capture' });
             }
+          } else {
+            // 未翻開暗棋！連棋模式下普通棋子可相鄰「盲吃/衝暗棋」！
+            if (ruleMode === 'lianqi') {
+              actions.push({ r: nr, c: nc, type: 'blind_capture' });
+            }
           }
         }
       }
@@ -528,18 +533,22 @@ const GameApp = (() => {
 
     // 連吃進行中
     if (comboActive) {
+      // 點擊自身棋子 -> 主動結束連吃
       if (comboPos && comboPos.r === r && comboPos.c === c) {
         updateStatusTip('✨ 結束連吃！換對方行動。');
         finishCombo();
         return;
       }
 
-      const match = validTargets.find(t => t.r === r && t.c === c && (t.type === 'capture' || t.type === 'cannon_unrevealed'));
+      // 點擊合法可吃目標（包含明吃、盲吃暗棋、炮跳吃） -> 繼續連吃！
+      const match = validTargets.find(t => t.r === r && t.c === c && (t.type === 'capture' || t.type === 'blind_capture' || t.type === 'cannon_unrevealed'));
       if (match) {
         executeCaptureOrMove(comboPos.r, comboPos.c, match);
       } else {
-        updateStatusTip('✨ 結束連吃！換對方行動。');
-        finishCombo();
+        // 點擊到其他無效位置時：不中斷連吃，給予溫馨提示防誤觸
+        const currPiece = board[comboPos.r][comboPos.c].piece;
+        const pName = currPiece ? currPiece.name : '棋子';
+        updateStatusTip(`🔥 連吃進行中！請點選周圍紅框 ⚔️ 敵棋或暗棋讓【${pName}】繼續連吃，或點自身/「完成連吃」結束！`);
       }
       return;
     }
@@ -547,9 +556,9 @@ const GameApp = (() => {
     // 點擊暗棋
     if (!cell.revealed) {
       if (selectedPos) {
-        const cannonMatch = validTargets.find(t => t.r === r && t.c === c && t.type === 'cannon_unrevealed');
-        if (cannonMatch) {
-          executeCaptureOrMove(selectedPos.r, selectedPos.c, cannonMatch);
+        const blindMatch = validTargets.find(t => t.r === r && t.c === c && (t.type === 'blind_capture' || t.type === 'cannon_unrevealed'));
+        if (blindMatch) {
+          executeCaptureOrMove(selectedPos.r, selectedPos.c, blindMatch);
           return;
         }
       }
@@ -586,7 +595,12 @@ const GameApp = (() => {
       if (validTargets.length === 0) {
         updateStatusTip(`【${cell.piece.name}】周圍暫無可移動或可吃子的目標！`);
       } else {
-        updateStatusTip(`已選取【${cell.piece.name}】，請點擊綠點移動或紅框吃子！`);
+        const hasBlind = validTargets.some(t => t.type === 'blind_capture');
+        if (hasBlind) {
+          updateStatusTip(`已選取【${cell.piece.name}】，可移動、吃明棋，或直接衝暗棋盲吃！`);
+        } else {
+          updateStatusTip(`已選取【${cell.piece.name}】，請點擊綠點移動或紅框吃子！`);
+        }
       }
       return;
     }
@@ -642,6 +656,41 @@ const GameApp = (() => {
       return;
     }
 
+    // 盲吃 / 衝暗棋 (連棋模式特權：普通棋子相鄰衝暗棋)
+    if (action.type === 'blind_capture') {
+      toCell.revealed = true;
+      const targetPiece = toCell.piece;
+      consecutiveNoCapture = 0;
+
+      // 檢查是否為敵方棋子且可吃
+      if (targetPiece.color !== attacker.color && canCapture(attacker, targetPiece)) {
+        deadPieces[targetPiece.color].push(targetPiece.name);
+        toCell.piece = attacker;
+        fromCell.piece = null;
+        playSynthSfx('capture');
+
+        if (attacker.rank === 1 && targetPiece.rank === 7) {
+          updateStatusTip(`💥 太神啦！【${attacker.name}】衝暗棋翻出大帥【${targetPiece.name}】並成功吃下！小卒立大功！`);
+        } else if (attacker.rank === targetPiece.rank) {
+          updateStatusTip(`⚔️ 衝暗棋同階互吃！【${attacker.name}】翻出並拼掉了【${targetPiece.color === 'red' ? '紅' : '黑'}・${targetPiece.name}】！`);
+        } else {
+          updateStatusTip(`⚔️ 盲吃成功！【${attacker.name}】衝暗棋翻出並吃掉了【${targetPiece.color === 'red' ? '紅' : '黑'}・${targetPiece.name}】！`);
+        }
+        checkComboOrEndTurn(action.r, action.c);
+      } else if (targetPiece.color === attacker.color) {
+        // 翻出同陣營友軍 -> 揭曉成功，但不能吃，結束連吃
+        playSynthSfx('flip');
+        updateStatusTip(`🛡️ 衝暗棋翻出自己人的【${targetPiece.color === 'red' ? '紅' : '黑'}・${targetPiece.name}】！無法吃子，揭曉成功，換對方行動。`);
+        finishCombo();
+      } else {
+        // 翻出敵方但吃不下 (例如士翻出帥、或馬翻出車、或帥翻出兵)
+        playSynthSfx('flip');
+        updateStatusTip(`⚠️ 衝暗棋翻出比自己大的【${targetPiece.color === 'red' ? '紅' : '黑'}・${targetPiece.name}】！【${attacker.name}】吃不下，揭曉成功，換對方行動。`);
+        finishCombo();
+      }
+      return;
+    }
+
     // 炮跳打暗棋 (連棋模式特權)
     if (action.type === 'cannon_unrevealed') {
       toCell.revealed = true;
@@ -660,12 +709,12 @@ const GameApp = (() => {
         updateStatusTip(`🛡️ 炮跳過去揭曉發現是自己人的【${targetPiece.name}】！揭曉成功，炮返回原位。`);
         renderBoard();
         renderGraveyards();
-        endTurn();
+        finishCombo();
       }
       return;
     }
 
-    // 一般吃子
+    // 一般明吃
     if (action.type === 'capture') {
       const captured = toCell.piece;
       deadPieces[captured.color].push(captured.name);
@@ -699,10 +748,10 @@ const GameApp = (() => {
       return;
     }
 
-    // 連棋模式：檢查是否能連吃
+    // 連棋模式：檢查是否能連吃（包含周圍已翻開可吃敵棋、未翻開暗棋、以及炮跳吃）
     comboActive = true;
     const nextActions = getLegalActionsForPiece(newR, newC);
-    const capturableTargets = nextActions.filter(a => a.type === 'capture' || a.type === 'cannon_unrevealed');
+    const capturableTargets = nextActions.filter(a => a.type === 'capture' || a.type === 'blind_capture' || a.type === 'cannon_unrevealed');
 
     if (capturableTargets.length > 0) {
       comboCount++;
@@ -717,7 +766,9 @@ const GameApp = (() => {
       if (playType === 'single' && currentTurn === 'opponent') {
         setTimeout(() => executeAiComboMove(), 750);
       } else {
-        updateStatusTip(`🔥 連吃 COMBO x${comboCount + 1}！點擊 ⚔️ 繼續吃子，或點選自身棋子/按鈕結束回合！`);
+        const currPiece = board[newR][newC].piece;
+        const pName = currPiece ? currPiece.name : '棋子';
+        updateStatusTip(`🔥 連吃 COMBO x${comboCount + 1}！【${pName}】可繼續吃周圍敵棋或衝暗棋，或點選自身/按鈕結束！`);
       }
     } else {
       finishCombo();
@@ -828,18 +879,24 @@ const GameApp = (() => {
     }
 
     const captures = allActions.filter(x => x.action.type === 'capture');
+    const blindCaptures = allActions.filter(x => x.action.type === 'blind_capture');
     const cannonUnrevealed = allActions.filter(x => x.action.type === 'cannon_unrevealed');
     const normalMoves = allActions.filter(x => x.action.type === 'move');
 
     // Level 1 (Eric)
     if (aiLevel === 1) {
-      if (unrevealedCells.length > 0 && Math.random() < 0.55) {
+      if (unrevealedCells.length > 0 && Math.random() < 0.5) {
         const pick = unrevealedCells[Math.floor(Math.random() * unrevealedCells.length)];
         executeFlip(pick.r, pick.c);
         return;
       }
       if (captures.length > 0) {
         const pick = captures[Math.floor(Math.random() * captures.length)];
+        executeCaptureOrMove(pick.fromR, pick.fromC, pick.action);
+        return;
+      }
+      if (blindCaptures.length > 0 && Math.random() < 0.4) {
+        const pick = blindCaptures[Math.floor(Math.random() * blindCaptures.length)];
         executeCaptureOrMove(pick.fromR, pick.fromC, pick.action);
         return;
       }
@@ -875,6 +932,16 @@ const GameApp = (() => {
       return;
     }
 
+    // 智能衝暗棋：若有較大棋子（將士象車）鄰近暗棋，優先衝暗棋盲吃
+    if (blindCaptures.length > 0 && (aiLevel >= 2)) {
+      const highRankBlinds = blindCaptures.filter(x => x.piece.rank >= 4);
+      if (highRankBlinds.length > 0 && (aiLevel >= 3 || Math.random() < 0.65)) {
+        const pick = highRankBlinds[Math.floor(Math.random() * highRankBlinds.length)];
+        executeCaptureOrMove(pick.fromR, pick.fromC, pick.action);
+        return;
+      }
+    }
+
     if (unrevealedCells.length > 0 && (normalMoves.length === 0 || Math.random() < 0.5)) {
       const pick = unrevealedCells[Math.floor(Math.random() * unrevealedCells.length)];
       executeFlip(pick.r, pick.c);
@@ -883,6 +950,12 @@ const GameApp = (() => {
 
     if (normalMoves.length > 0) {
       const pick = normalMoves[Math.floor(Math.random() * normalMoves.length)];
+      executeCaptureOrMove(pick.fromR, pick.fromC, pick.action);
+      return;
+    }
+
+    if (blindCaptures.length > 0) {
+      const pick = blindCaptures[Math.floor(Math.random() * blindCaptures.length)];
       executeCaptureOrMove(pick.fromR, pick.fromC, pick.action);
       return;
     }
@@ -899,18 +972,33 @@ const GameApp = (() => {
   function executeAiComboMove() {
     if (!comboActive || !comboPos) return;
     const actions = getLegalActionsForPiece(comboPos.r, comboPos.c);
-    const capturable = actions.filter(a => a.type === 'capture' || a.type === 'cannon_unrevealed');
+    const capturable = actions.filter(a => a.type === 'capture' || a.type === 'blind_capture' || a.type === 'cannon_unrevealed');
 
     if (capturable.length > 0) {
-      capturable.sort((a, b) => {
-        const targetA = board[a.r][a.c].piece;
-        const targetB = board[b.r][b.c].piece;
-        const valA = targetA ? targetA.rank : 0;
-        const valB = targetB ? targetB.rank : 0;
-        return valB - valA;
-      });
-      const pick = capturable[0];
-      executeCaptureOrMove(comboPos.r, comboPos.c, pick);
+      // 優先吃已知高價值明棋
+      const revealedCaptures = capturable.filter(a => a.type === 'capture');
+      if (revealedCaptures.length > 0) {
+        revealedCaptures.sort((a, b) => {
+          const targetA = board[a.r][a.c].piece;
+          const targetB = board[b.r][b.c].piece;
+          const valA = targetA ? targetA.rank : 0;
+          const valB = targetB ? targetB.rank : 0;
+          return valB - valA;
+        });
+        executeCaptureOrMove(comboPos.r, comboPos.c, revealedCaptures[0]);
+        return;
+      }
+
+      // 若無已知明棋，大棋子（rank >= 4）或較高機率繼續衝暗棋盲吃
+      const aiPiece = board[comboPos.r][comboPos.c].piece;
+      const blindTargets = capturable.filter(a => a.type === 'blind_capture' || a.type === 'cannon_unrevealed');
+      if (blindTargets.length > 0 && (aiPiece.rank >= 4 || Math.random() < 0.65)) {
+        const pick = blindTargets[Math.floor(Math.random() * blindTargets.length)];
+        executeCaptureOrMove(comboPos.r, comboPos.c, pick);
+        return;
+      }
+
+      finishCombo();
     } else {
       finishCombo();
     }
@@ -1099,6 +1187,8 @@ const GameApp = (() => {
             cellDiv.classList.add('valid-move');
           } else if (validAction.type === 'capture' || validAction.type === 'cannon_unrevealed') {
             cellDiv.classList.add('valid-capture');
+          } else if (validAction.type === 'blind_capture') {
+            cellDiv.classList.add('valid-blind-capture');
           }
         }
 
