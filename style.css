@@ -158,7 +158,7 @@ h1.game-title {
 .mode-desc {
   font-size: 0.92rem;
   color: #d7ccc8;
-  line-height: 1.5;
+  line-height: 1.9;
   text-align: left;
   margin-bottom: 18px;
   flex: 1;
@@ -866,28 +866,45 @@ h1.game-title {
   border: 1px solid #5d4037;
 }
 
+/* 注音 (Bopomofo Ruby) 專屬字型與行高優化 */
+ruby {
+  ruby-align: center;
+  ruby-position: over;
+  display: inline-ruby;
+}
+
+rt {
+  font-size: 0.56em;
+  line-height: 1.1;
+  color: #ffd54f;
+  font-weight: 500;
+  user-select: none;
+  font-family: -apple-system, BlinkMacSystemFont, "PingFang TC", "Microsoft JhengHei", sans-serif;
+}
+
 .rules-body {
   text-align: left;
-  font-size: 0.95rem;
+  font-size: 0.96rem;
   color: #eceff1;
-  line-height: 1.6;
+  line-height: 2.1;
 }
 
 .rules-body h3 {
   color: #ffe082;
-  margin: 12px 0 6px;
+  margin: 14px 0 8px;
   font-size: 1.15rem;
   border-bottom: 1px solid #6d4c41;
-  padding-bottom: 4px;
+  padding-bottom: 6px;
+  line-height: 1.8;
 }
 
 .rules-body ul {
   padding-left: 20px;
-  margin-bottom: 8px;
+  margin-bottom: 10px;
 }
 
 .rules-body li {
-  margin-bottom: 6px;
+  margin-bottom: 12px;
 }
 
 .rules-rank-box {
