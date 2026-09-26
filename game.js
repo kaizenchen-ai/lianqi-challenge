@@ -279,11 +279,13 @@ const GameApp = (() => {
     startNewGame();
   }
 
+  const RULE_TABS = ['lianqi_zh', 'lianqi_en', 'lianqi_zy', 'banqi_zh', 'banqi_en', 'banqi_zy'];
+
   function openRules() {
     initAudioContext();
     document.getElementById('modal-rules').classList.add('active');
-    switchRulesTab(ruleMode);
-    playSynthSfx('move');
+    const initialTab = ruleMode === 'banqi' ? 'banqi_zh' : 'lianqi_zh';
+    switchRulesTab(initialTab);
   }
 
   function closeRules() {
@@ -292,22 +294,57 @@ const GameApp = (() => {
   }
 
   function switchRulesTab(tab) {
-    const btnLianqi = document.getElementById('tab-btn-rule-lianqi');
-    const btnBanqi = document.getElementById('tab-btn-rule-banqi');
-    const contentLianqi = document.getElementById('rule-content-lianqi');
-    const contentBanqi = document.getElementById('rule-content-banqi');
+    if (tab === 'lianqi') tab = 'lianqi_zh';
+    if (tab === 'banqi') tab = 'banqi_zh';
 
-    if (tab === 'lianqi') {
-      if (btnLianqi) btnLianqi.classList.add('active');
-      if (btnBanqi) btnBanqi.classList.remove('active');
-      if (contentLianqi) contentLianqi.style.display = 'block';
-      if (contentBanqi) contentBanqi.style.display = 'none';
-    } else {
-      if (btnLianqi) btnLianqi.classList.remove('active');
-      if (btnBanqi) btnBanqi.classList.add('active');
-      if (contentLianqi) contentLianqi.style.display = 'none';
-      if (contentBanqi) contentBanqi.style.display = 'block';
+    RULE_TABS.forEach(t => {
+      const btn = document.getElementById(`tab-btn-rule-${t}`);
+      const content = document.getElementById(`rule-content-${t}`);
+      if (btn) {
+        if (t === tab) btn.classList.add('active');
+        else btn.classList.remove('active');
+      }
+      if (content) {
+        if (t === tab) content.style.display = 'block';
+        else content.style.display = 'none';
+      }
+    });
+
+    const rankBox = document.getElementById('rules-rank-box');
+    if (rankBox) {
+      if (tab.endsWith('_en')) {
+        rankBox.innerHTML = `
+          <strong>👑 Piece Rank Hierarchy (Highest to Lowest):</strong><br>
+          <div style="margin: 6px 0; font-size: 1rem; color: #ffe082;">
+            King (帥/將) ＞ Advisor (仕/士) ＞ Elephant (相/象) ＞ Chariot (俥/車) ＞ Horse (傌/馬) ＞ Cannon (炮/包) ＞ Pawn (兵/卒)
+          </div>
+          <div style="font-size: 0.85rem; color: #bcaaa4; margin-top: 4px;">
+            (King does not capture Pawn; Pawn captures King; Equal ranks capture each other)
+          </div>
+        `;
+      } else if (tab.endsWith('_zy')) {
+        rankBox.innerHTML = `
+          <strong>👑 <ruby>棋<rt>ㄑㄧˊ</rt>子<rt>ㄗˇ</rt></ruby><ruby>大<rt>ㄉㄚˋ</rt>小<rt>ㄒㄧㄠˇ</rt></ruby><ruby>順<rt>ㄕㄨㄣˋ</rt>序<rt>ㄒㄩˋ</rt></ruby>（<ruby>由<rt>ㄧㄡˊ</rt>大<rt>ㄉㄚˋ</rt>到<rt>ㄉㄠˋ</rt>小<rt>ㄒㄧㄠˇ</rt></ruby>）：</strong><br>
+          <div style="margin: 8px 0; font-size: 1.05rem; line-height: 2.2;">
+            <ruby>帥<rt>ㄕㄨㄞˋ</rt></ruby>/<ruby>將<rt>ㄐㄧㄤˋ</rt></ruby> ＞ <ruby>仕<rt>ㄕˋ</rt></ruby>/<ruby>士<rt>ㄕˋ</rt></ruby> ＞ <ruby>相<rt>ㄒㄧㄤˋ</rt></ruby>/<ruby>象<rt>ㄒㄧㄤˋ</rt></ruby> ＞ <ruby>俥<rt>ㄐㄩ</rt></ruby>/<ruby>車<rt>ㄐㄩ</rt></ruby> ＞ <ruby>傌<rt>ㄇㄚˇ</rt></ruby>/<ruby>馬<rt>ㄇㄚˇ</rt></ruby> ＞ <ruby>炮<rt>ㄆㄠˋ</rt></ruby>/<ruby>包<rt>ㄅㄠ</rt></ruby> ＞ <ruby>兵<rt>ㄅㄧㄥ</rt></ruby>/<ruby>卒<rt>ㄗㄨˊ</rt></ruby>
+          </div>
+          <div style="font-size: 0.88rem; color: #bcaaa4; margin-top: 4px; line-height: 2;">
+            （<ruby>帥<rt>ㄕㄨㄞˋ</rt>將<rt>ㄐㄧㄤˋ</rt>不<rt>ㄅㄨˋ</rt>吃<rt>ㄔ</rt>兵<rt>ㄅㄧㄥ</rt>卒<rt>ㄗㄨˊ</rt></ruby>；<ruby>兵<rt>ㄅㄧㄥ</rt>卒<rt>ㄗㄨˊ</rt>可<rt>ㄎㄜˇ</rt>吃<rt>ㄔ</rt>帥<rt>ㄕㄨㄞˋ</rt>將<rt>ㄐㄧㄤˋ</rt></ruby>；<ruby>同<rt>ㄊㄨㄥˊ</rt>階<rt>ㄐㄧㄝ</rt>可<rt>ㄎㄜˇ</rt>互<rt>ㄏㄨˋ</rt>吃<rt>ㄔ</rt></ruby>）
+          </div>
+        `;
+      } else {
+        rankBox.innerHTML = `
+          <strong>👑 棋子大小順序（由大到小）：</strong><br>
+          <div style="margin: 6px 0; font-size: 1.05rem; color: #ffe082;">
+            帥/將 ＞ 仕/士 ＞ 相/象 ＞ 俥/車 ＞ 傌/馬 ＞ 炮/包 ＞ 兵/卒
+          </div>
+          <div style="font-size: 0.85rem; color: #bcaaa4; margin-top: 4px;">
+            （帥將不吃兵卒；兵卒可吃帥將；同階可互吃）
+          </div>
+        `;
+      }
     }
+    playSynthSfx('move');
   }
 
   function closeModals() {

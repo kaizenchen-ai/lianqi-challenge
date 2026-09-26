@@ -855,15 +855,85 @@ h1.game-title {
   gap: 12px;
 }
 
-/* 規則說明分頁 */
-.rules-tabs-nav {
-  display: flex;
-  background: #27140e;
-  border-radius: 14px;
-  padding: 4px;
-  gap: 6px;
+/* 規則說明 6 按鈕分區導航（左 3 連棋，右 3 暗棋） */
+.rules-tabs-container {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
   margin-bottom: 14px;
-  border: 1px solid #5d4037;
+}
+
+@media (max-width: 520px) {
+  .rules-tabs-container {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+}
+
+.rules-tab-group {
+  background: rgba(0, 0, 0, 0.45);
+  border-radius: 12px;
+  padding: 6px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  border: 1.5px solid #5d4037;
+}
+
+.rules-tab-group.lianqi-group {
+  border-color: #ff9800;
+}
+
+.rules-tab-group.banqi-group {
+  border-color: #26a69a;
+}
+
+.rules-group-label {
+  font-size: 0.86rem;
+  font-weight: 800;
+  color: #ffe082;
+  text-align: center;
+}
+
+.rules-tab-group.banqi-group .rules-group-label {
+  color: #80cbc4;
+}
+
+.rules-group-buttons {
+  display: flex;
+  gap: 4px;
+}
+
+.rule-tab-btn {
+  flex: 1;
+  background: #3e2723;
+  color: #d7ccc8;
+  border: 1px solid #6d4c41;
+  border-radius: 8px;
+  padding: 6px 2px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  text-align: center;
+}
+
+.rule-tab-btn:hover {
+  background: #4e342e;
+}
+
+.rules-tab-group.lianqi-group .rule-tab-btn.active {
+  background: #ff9800;
+  color: #000;
+  border-color: #ffb74d;
+  box-shadow: 0 0 8px rgba(255, 152, 0, 0.5);
+}
+
+.rules-tab-group.banqi-group .rule-tab-btn.active {
+  background: #00897b;
+  color: #fff;
+  border-color: #4db6ac;
+  box-shadow: 0 0 8px rgba(0, 137, 123, 0.5);
 }
 
 /* 注音 (Bopomofo Ruby) 專屬字型與行高優化 */
@@ -884,18 +954,22 @@ rt {
 
 .rules-body {
   text-align: left;
-  font-size: 0.96rem;
+  font-size: 0.95rem;
   color: #eceff1;
+  line-height: 1.8;
+}
+
+#rule-content-lianqi_zy, #rule-content-banqi_zy {
   line-height: 2.1;
 }
 
 .rules-body h3 {
   color: #ffe082;
-  margin: 14px 0 8px;
-  font-size: 1.15rem;
+  margin: 10px 0 8px;
+  font-size: 1.12rem;
   border-bottom: 1px solid #6d4c41;
   padding-bottom: 6px;
-  line-height: 1.8;
+  line-height: 1.6;
 }
 
 .rules-body ul {
@@ -904,7 +978,7 @@ rt {
 }
 
 .rules-body li {
-  margin-bottom: 12px;
+  margin-bottom: 10px;
 }
 
 .rules-rank-box {
