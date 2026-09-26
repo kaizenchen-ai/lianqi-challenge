@@ -321,11 +321,30 @@ h1.game-title {
   background: linear-gradient(145deg, #4e342e, #33211c);
   border: 3px solid #8d6e63;
   border-radius: 24px;
-  padding: 32px 24px;
+  padding: 36px 24px;
   text-align: center;
   width: 95%;
   max-width: 520px;
-  margin-bottom: 20px;
+  margin: 0 auto 20px auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+.dual-start-desc {
+  color: #d7ccc8;
+  margin: 14px 0 24px 0;
+  line-height: 1.8;
+  text-align: center;
+  font-size: 1.05rem;
+}
+
+.btn-dual-start {
+  font-size: 1.3rem;
+  padding: 16px 36px;
+  margin: 0 auto;
+  align-self: center;
 }
 
 /* 按鈕樣式 */
