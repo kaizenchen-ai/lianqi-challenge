@@ -32,10 +32,10 @@ const GameApp = (() => {
   };
 
   const OPPONENT_PROFILES = {
-    eric: { name: '男同學 (Eric)', avatar: '👦', desc: '入門練習・活潑開朗', level: 1 },
-    ana: { name: '女同學 (Ana)', avatar: '👧', desc: '機智靈活・穩健防守', level: 2 },
-    davis: { name: '爸爸 (Davis)', avatar: '👨', desc: '沉著老練・車馬炮佈局', level: 3 },
-    michelle: { name: '媽媽 (Michelle)', avatar: '👩', desc: '細心縝密・高手挑戰', level: 4 }
+    eric: { name: 'Boy(Kevin)', avatar: '👦', desc: '入門練習・活潑開朗', level: 1 },
+    ana: { name: 'Girl(Anna)', avatar: '👧', desc: '機智靈活・穩健防守', level: 2 },
+    davis: { name: 'Father(Dad)', avatar: '👨', desc: '沉著老練・車馬炮佈局', level: 3 },
+    michelle: { name: 'Mother(Mom)', avatar: '👩', desc: '細心縝密・高手挑戰', level: 4 }
   };
 
   // --- 語音音檔路徑 ---
@@ -1067,11 +1067,11 @@ const GameApp = (() => {
       const seq = [];
       const useChildVoice = Math.random() < 0.35;
       if (useChildVoice) {
-        seq.push({ label: '👧 女同學 (Ana)', file: AUDIO_FILES.ana_win });
-        seq.push({ label: '👦 男同學 (Eric)', file: AUDIO_FILES.eric_win });
+        seq.push({ label: '👧 Girl(Anna)', file: AUDIO_FILES.ana_win });
+        seq.push({ label: '👦 Boy(Kevin)', file: AUDIO_FILES.eric_win });
       } else {
-        seq.push({ label: '👩 媽媽 (Michelle)', file: AUDIO_FILES.michelle_win });
-        seq.push({ label: '👨 爸爸 (Davis)', file: AUDIO_FILES.davis_win });
+        seq.push({ label: '👩 Mother(Mom)', file: AUDIO_FILES.michelle_win });
+        seq.push({ label: '👨 Father(Dad)', file: AUDIO_FILES.davis_win });
       }
 
       playVoiceSequence(seq, (roleName) => {
@@ -1087,11 +1087,11 @@ const GameApp = (() => {
       const seq = [];
       const useChildVoice = Math.random() < 0.35;
       if (useChildVoice) {
-        seq.push({ label: '👦 男同學 (Eric)', file: AUDIO_FILES.eric_lose });
-        seq.push({ label: '👧 女同學 (Ana)', file: AUDIO_FILES.ana_lose });
+        seq.push({ label: '👦 Boy(Kevin)', file: AUDIO_FILES.eric_lose });
+        seq.push({ label: '👧 Girl(Anna)', file: AUDIO_FILES.ana_lose });
       } else {
-        seq.push({ label: '👩 媽媽 (Michelle)', file: AUDIO_FILES.michelle_lose });
-        seq.push({ label: '👨 爸爸 (Davis)', file: AUDIO_FILES.davis_lose });
+        seq.push({ label: '👩 Mother(Mom)', file: AUDIO_FILES.michelle_lose });
+        seq.push({ label: '👨 Father(Dad)', file: AUDIO_FILES.davis_lose });
       }
 
       playVoiceSequence(seq, (roleName) => {
@@ -1131,14 +1131,14 @@ const GameApp = (() => {
     if (playType === 'single') {
       const opp = OPPONENT_PROFILES[opponentKey];
       if (p1Badge) p1Badge.textContent = '🧑';
-      if (p1Name) p1Name.textContent = '玩家 (你)';
+      if (p1Name) p1Name.textContent = 'Player(You)';
       if (p2Badge) p2Badge.textContent = opp.avatar;
       if (p2Name) p2Name.textContent = opp.name;
     } else {
       if (p1Badge) p1Badge.textContent = playerColor === 'black' ? '⚫' : '🔴';
-      if (p1Name) p1Name.textContent = '玩家 1 (先手)';
+      if (p1Name) p1Name.textContent = 'Player 1 (先手)';
       if (p2Badge) p2Badge.textContent = opponentColor === 'black' ? '⚫' : '🔴';
-      if (p2Name) p2Name.textContent = '玩家 2 (後手)';
+      if (p2Name) p2Name.textContent = 'Player 2 (後手)';
     }
 
     if (isP1Turn) {
