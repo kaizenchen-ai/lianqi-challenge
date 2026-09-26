@@ -94,7 +94,7 @@ h1.game-title {
   gap: 20px;
   width: 96%;
   max-width: 680px;
-  margin-bottom: 24px;
+  margin-bottom: 20px;
 }
 
 @media (max-width: 600px) {
@@ -177,6 +177,70 @@ h1.game-title {
   width: 90%;
   max-width: 460px;
   justify-content: center;
+  margin-bottom: 20px;
+}
+
+/* 首頁作者、正式日期與執行網址列 */
+.home-credits-bar {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: rgba(39, 20, 14, 0.75);
+  border: 1px solid #6d4c41;
+  border-radius: 16px;
+  padding: 12px 20px;
+  width: 96%;
+  max-width: 680px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+  text-align: center;
+  gap: 4px;
+}
+
+.credits-author {
+  font-size: 1.05rem;
+  color: #ffe082;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+}
+
+.credits-author strong {
+  color: #ffca28;
+}
+
+.credits-date {
+  font-size: 0.88rem;
+  color: #bcaaa4;
+  font-family: Georgia, "Times New Roman", serif;
+  letter-spacing: 0.5px;
+}
+
+.credits-urls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-size: 0.85rem;
+  color: #d7ccc8;
+  margin-top: 4px;
+}
+
+.credits-urls a {
+  color: #80d8ff;
+  text-decoration: none;
+  font-weight: 600;
+  border-bottom: 1px dashed rgba(128, 216, 255, 0.6);
+  transition: color 0.15s ease;
+}
+
+.credits-urls a:hover {
+  color: #b3e5fc;
+}
+
+.url-divider {
+  color: #6d4c41;
+  font-weight: bold;
 }
 
 /* 玩法指示標籤 */
