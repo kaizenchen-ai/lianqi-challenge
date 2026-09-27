@@ -137,7 +137,7 @@
           <div class="player-badge" id="badge-p1">🧑</div>
           <div class="player-meta">
             <span class="player-role-name" id="name-p1">Player(You)</span>
-            <span class="turn-pill active-turn" id="turn-p1">🔴 思考中...</span>
+            <span class="turn-pill active-turn" id="turn-p1">❓ Undecided (Active)</span>
           </div>
         </div>
 
@@ -145,8 +145,8 @@
 
         <div class="player-info-box" id="info-p2">
           <div class="player-meta" style="text-align: right;">
-            <span class="player-role-name" id="name-p2">電腦對手</span>
-            <span class="turn-pill wait-turn" id="turn-p2">⚫ 等候中</span>
+            <span class="player-role-name" id="name-p2">Boy(Kevin)</span>
+            <span class="turn-pill wait-turn" id="turn-p2">❓ Undecided (Waiting)</span>
           </div>
           <div class="player-badge" id="badge-p2">🤖</div>
         </div>
@@ -165,29 +165,36 @@
         <button class="btn-end-combo" onclick="GameApp.finishCombo()">完成連吃 (結束回合)</button>
       </div>
 
-      <!-- 4x8 棋盤 -->
-      <div class="board-wrapper">
-        <div class="board-container" id="board-container">
-          <!-- 32 格動態生成 -->
+      <!-- 棋盤與兩側被吃棋子展示區 (左右側邊欄) -->
+      <div class="game-play-area">
+        <!-- 左側：紅方被吃棋子 -->
+        <aside class="side-graveyard left" id="panel-graveyard-red">
+          <div class="graveyard-card red-theme">
+            <span class="graveyard-title">🔴 Red Captured (<span id="count-dead-red">0</span>)</span>
+            <div class="graveyard-chips" id="chips-dead-red"></div>
+          </div>
+        </aside>
+
+        <!-- 中間：4x8 棋盤 -->
+        <div class="board-wrapper">
+          <div class="board-container" id="board-container">
+            <!-- 32 格動態生成 -->
+          </div>
         </div>
+
+        <!-- 右側：黑方被吃棋子 -->
+        <aside class="side-graveyard right" id="panel-graveyard-black">
+          <div class="graveyard-card black-theme">
+            <span class="graveyard-title">⚫ Black Captured (<span id="count-dead-black">0</span>)</span>
+            <div class="graveyard-chips" id="chips-dead-black"></div>
+          </div>
+        </aside>
       </div>
 
       <!-- 狀態提示列 -->
       <div id="game-status-tip" class="status-tip-bar">
         提示：點擊暗棋翻開，或點擊自己的明棋移動與吃子
       </div>
-
-      <!-- 陣亡棋子展示區 (墓地) -->
-      <footer class="graveyard-panel">
-        <div class="graveyard-card">
-          <span class="graveyard-title">🔴 紅方被吃棋子 (<span id="count-dead-red">0</span>)</span>
-          <div class="graveyard-chips" id="chips-dead-red"></div>
-        </div>
-        <div class="graveyard-card">
-          <span class="graveyard-title">⚫ 黑方被吃棋子 (<span id="count-dead-black">0</span>)</span>
-          <div class="graveyard-chips" id="chips-dead-black"></div>
-        </div>
-      </footer>
     </section>
 
     <!-- 彈窗 1：遊戲結束結算 -->

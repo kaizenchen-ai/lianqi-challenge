@@ -1199,8 +1199,8 @@ const GameApp = (() => {
 
     const isP1Turn = (playType === 'single') ? (currentTurn === 'player') : (currentTurn === 'p1');
 
-    const p1ColorStr = playerColor ? (playerColor === 'red' ? '🔴 紅方' : '⚫ 黑方') : '❓ 陣營待定';
-    const p2ColorStr = opponentColor ? (opponentColor === 'red' ? '🔴 紅方' : '⚫ 黑方') : '❓ 陣營待定';
+    const p1ColorStr = playerColor ? (playerColor === 'red' ? '🔴 Red' : '⚫ Black') : '❓ Undecided';
+    const p2ColorStr = opponentColor ? (opponentColor === 'red' ? '🔴 Red' : '⚫ Black') : '❓ Undecided';
 
     if (playType === 'single') {
       const opp = OPPONENT_PROFILES[opponentKey];
@@ -1210,28 +1210,28 @@ const GameApp = (() => {
       if (p2Name) p2Name.textContent = opp.name;
     } else {
       if (p1Badge) p1Badge.textContent = playerColor === 'black' ? '⚫' : '🔴';
-      if (p1Name) p1Name.textContent = 'Player 1 (先手)';
+      if (p1Name) p1Name.textContent = 'Player 1';
       if (p2Badge) p2Badge.textContent = opponentColor === 'black' ? '⚫' : '🔴';
-      if (p2Name) p2Name.textContent = 'Player 2 (後手)';
+      if (p2Name) p2Name.textContent = 'Player 2';
     }
 
     if (isP1Turn) {
       if (p1Turn) {
         p1Turn.className = 'turn-pill active-turn';
-        p1Turn.textContent = `${p1ColorStr} (行動中)`;
+        p1Turn.textContent = `${p1ColorStr} (Active)`;
       }
       if (p2Turn) {
         p2Turn.className = 'turn-pill wait-turn';
-        p2Turn.textContent = `${p2ColorStr} (等候)`;
+        p2Turn.textContent = `${p2ColorStr} (Waiting)`;
       }
     } else {
       if (p1Turn) {
         p1Turn.className = 'turn-pill wait-turn';
-        p1Turn.textContent = `${p1ColorStr} (等候)`;
+        p1Turn.textContent = `${p1ColorStr} (Waiting)`;
       }
       if (p2Turn) {
         p2Turn.className = 'turn-pill active-turn';
-        p2Turn.textContent = `${p2ColorStr} (行動中)`;
+        p2Turn.textContent = `${p2ColorStr} (Active)`;
       }
     }
   }

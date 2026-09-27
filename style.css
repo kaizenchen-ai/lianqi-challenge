@@ -449,7 +449,7 @@ h1.game-title {
 /* 遊戲盤面頂部資訊列 */
 .game-header {
   width: 100%;
-  max-width: 860px;
+  max-width: 1040px;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -585,15 +585,27 @@ h1.game-title {
   cursor: pointer;
 }
 
+/* 對戰區域 (左紅墓地 + 中間棋盤 + 右黑墓地) */
+.game-play-area {
+  width: 100%;
+  max-width: 1040px;
+  display: flex;
+  align-items: stretch;
+  justify-content: center;
+  gap: 12px;
+  margin: 6px 0;
+}
+
 /* 棋盤主體 (4x8) */
 .board-wrapper {
   position: relative;
-  width: 100%;
-  max-width: 860px;
+  flex: 1;
+  max-width: 800px;
+  min-width: 0;
   display: flex;
   justify-content: center;
   align-items: center;
-  padding: 6px;
+  padding: 0;
 }
 
 .board-container {
@@ -768,59 +780,106 @@ h1.game-title {
   font-size: 1.05rem;
 }
 
-/* 底部墓地與陣亡計數 */
-.graveyard-panel {
-  width: 100%;
-  max-width: 860px;
-  display: flex;
-  justify-content: space-between;
-  gap: 12px;
-  margin-top: 10px;
-}
-
-.graveyard-card {
-  flex: 1;
-  background: rgba(33, 19, 13, 0.8);
-  border: 2px solid #5d4037;
-  border-radius: 14px;
-  padding: 8px 12px;
+/* 棋盤兩側墓地與陣亡棋子展示區 */
+.side-graveyard {
+  width: 112px;
+  flex-shrink: 0;
   display: flex;
   flex-direction: column;
-  min-height: 52px;
 }
 
-.graveyard-title {
-  font-size: 0.85rem;
-  color: #bcaaa4;
-  margin-bottom: 4px;
-  font-weight: 600;
+.side-graveyard .graveyard-card {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  border-radius: 18px;
+  padding: 10px 6px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.55);
+  background: rgba(33, 19, 13, 0.85);
+  transition: all 0.3s ease;
 }
 
-.graveyard-chips {
+.side-graveyard .graveyard-card.red-theme {
+  border: 2.5px solid rgba(229, 57, 53, 0.75);
+  background: linear-gradient(180deg, rgba(183, 28, 28, 0.28) 0%, rgba(33, 19, 13, 0.92) 100%);
+}
+
+.side-graveyard .graveyard-card.black-theme {
+  border: 2.5px solid rgba(120, 144, 156, 0.75);
+  background: linear-gradient(180deg, rgba(55, 71, 79, 0.38) 0%, rgba(20, 20, 20, 0.92) 100%);
+}
+
+.side-graveyard .graveyard-title {
+  font-size: 0.82rem;
+  color: #ffe082;
+  margin-bottom: 8px;
+  font-weight: 800;
+  text-align: center;
+  white-space: normal;
+  line-height: 1.25;
+  text-shadow: 0 1px 3px rgba(0,0,0,0.8);
+}
+
+.side-graveyard .graveyard-chips {
   display: flex;
   flex-wrap: wrap;
-  gap: 4px;
-  max-height: 48px;
+  gap: 6px;
+  justify-content: center;
+  align-content: flex-start;
   overflow-y: auto;
+  flex: 1;
+  max-height: 380px;
+  padding: 2px;
 }
 
 .dead-chip {
-  font-size: 0.8rem;
-  padding: 2px 6px;
-  border-radius: 8px;
-  font-weight: bold;
+  font-size: 0.95rem;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 900;
+  box-shadow: 0 3px 6px rgba(0,0,0,0.5), inset 0 1px 2px rgba(255,255,255,0.4);
+  flex-shrink: 0;
+  animation: piecePopIn 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+@keyframes piecePopIn {
+  0% { transform: scale(0.3); opacity: 0; }
+  100% { transform: scale(1); opacity: 1; }
 }
 
 .dead-chip.red {
-  background: #ffebee;
-  color: #c62828;
-  border: 1px solid #ef9a9a;
+  background: radial-gradient(circle at 35% 35%, #fff9c4, #f5f5f5 60%, #e0e0e0 100%);
+  color: #d32f2f;
+  border: 2px solid #d32f2f;
 }
 
 .dead-chip.black {
-  background: #eceff1;
-  color: #263238;
-  border: 1px solid #b0bec5;
+  background: radial-gradient(circle at 35% 35%, #e0f2f1, #eceff1 60%, #cfd8dc 100%);
+  color: #212121;
+  border: 2px solid #37474f;
+}
+
+/* 窄螢幕 RWD 自適應 */
+@media (max-width: 768px) {
+  .game-play-area {
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+  }
+  .side-graveyard {
+    width: 100%;
+    max-width: 500px;
+  }
+  .side-graveyard .graveyard-chips {
+    max-height: 52px;
+    flex-direction: row;
+    flex-wrap: wrap;
+    justify-content: flex-start;
+  }
 }
 
 /* 彈出視窗（結算、規則） */
