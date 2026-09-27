@@ -484,7 +484,122 @@ h1.game-title {
 .opponent-desc {
   font-size: 0.82rem;
   color: #d7ccc8;
-  line-height: 1.3;
+  line-height: 1.35;
+}
+
+/* 單人對手面板整體與 AI 難度指南看板 */
+.panel-single-opponents {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.ai-difficulty-guide-card {
+  background: rgba(39, 20, 14, 0.88);
+  border: 2px solid #8d6e63;
+  border-radius: 20px;
+  padding: 16px 18px;
+  width: 95%;
+  max-width: 560px;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.5);
+  margin-top: 4px;
+  margin-bottom: 20px;
+  text-align: left;
+}
+
+.guide-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+  padding-bottom: 8px;
+  border-bottom: 1.5px solid rgba(141, 110, 99, 0.5);
+}
+
+.guide-header-icon {
+  font-size: 1.35rem;
+}
+
+.guide-header-title {
+  font-size: 1rem;
+  font-weight: bold;
+  color: #ffe082;
+  letter-spacing: 0.3px;
+}
+
+.guide-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.guide-item {
+  background: rgba(0, 0, 0, 0.28);
+  border-radius: 12px;
+  padding: 10px 14px;
+  border-left: 4px solid #8d6e63;
+}
+
+.guide-item.item-davis {
+  border-left-color: #f44336;
+}
+
+.guide-item.item-michelle {
+  border-left-color: #ff9800;
+}
+
+.guide-item.item-ana {
+  border-left-color: #2196f3;
+}
+
+.guide-item.item-eric {
+  border-left-color: #4caf50;
+}
+
+.guide-item-top {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 5px;
+  flex-wrap: wrap;
+}
+
+.guide-item-top .avatar {
+  font-size: 1.25rem;
+}
+
+.guide-item-top .char-name {
+  font-size: 0.95rem;
+  font-weight: bold;
+  color: #fff;
+}
+
+.guide-badge {
+  font-size: 0.75rem;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 10px;
+}
+
+.guide-bullets {
+  margin: 0;
+  padding-left: 18px;
+  color: #d7ccc8;
+  font-size: 0.85rem;
+  line-height: 1.5;
+}
+
+.guide-bullets li {
+  margin-bottom: 3px;
+}
+
+.guide-bullets li:last-child {
+  margin-bottom: 0;
+}
+
+.guide-bullets strong {
+  color: #ffe082;
 }
 
 /* 遊戲盤面頂部資訊列 (Player 1 在左，Player 2 在右，中央標題與左右各 2 功能按鈕) */

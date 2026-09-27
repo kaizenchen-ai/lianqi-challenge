@@ -259,7 +259,7 @@ const GameApp = (() => {
     if (type === 'single') {
       if (btnSingle) btnSingle.classList.add('active');
       if (btnDual) btnDual.classList.remove('active');
-      if (pnlSingle) pnlSingle.style.display = 'grid';
+      if (pnlSingle) pnlSingle.style.display = 'flex';
       if (pnlDual) pnlDual.style.display = 'none';
     } else {
       if (btnSingle) btnSingle.classList.remove('active');
