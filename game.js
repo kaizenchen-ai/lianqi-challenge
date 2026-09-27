@@ -1373,19 +1373,48 @@ const GameApp = (() => {
   function getStoredLeaderboard() {
     try {
       const raw = localStorage.getItem(LEADERBOARD_STORAGE_KEY);
-      if (raw) return JSON.parse(raw);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed) && parsed.length >= 20) return parsed;
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          // 若先前只有 10 筆，自動補齊至 20 筆預設資料
+          const defaults = getDefault20Leaderboard();
+          const merged = [...parsed];
+          defaults.forEach(d => {
+            if (!merged.find(m => m.name === d.name && m.score === d.score)) {
+              merged.push(d);
+            }
+          });
+          merged.sort((a, b) => b.score - a.score);
+          return merged.slice(0, 20);
+        }
+      }
     } catch (e) {}
+    return getDefault20Leaderboard();
+  }
+
+  function getDefault20Leaderboard() {
     return [
-      { name: 'Teacher Kevin', score: 3450, opponent: 'Father(Dad)', mode: '🔥 連棋', date: '2026-09-26' },
-      { name: 'Alex', score: 2980, opponent: 'Father(Dad)', mode: '🔥 連棋', date: '2026-09-25' },
-      { name: 'Anna', score: 2520, opponent: 'Mother(Mom)', mode: '🎯 象棋', date: '2026-09-24' },
-      { name: 'Leo', score: 2150, opponent: 'Mother(Mom)', mode: '🔥 連棋', date: '2026-09-23' },
-      { name: 'Emma', score: 1880, opponent: 'Girl(Anna)', mode: '🔥 連棋', date: '2026-09-22' },
-      { name: 'Lucas', score: 1650, opponent: 'Girl(Anna)', mode: '🎯 象棋', date: '2026-09-21' },
-      { name: 'Mia', score: 1420, opponent: 'Boy(Kevin)', mode: '🔥 連棋', date: '2026-09-20' },
-      { name: 'Ethan', score: 1260, opponent: 'Boy(Kevin)', mode: '🎯 象棋', date: '2026-09-19' },
-      { name: 'Sophia', score: 1110, opponent: 'Boy(Kevin)', mode: '🔥 連棋', date: '2026-09-18' },
-      { name: 'Oliver', score: 990, opponent: 'Boy(Kevin)', mode: '🎯 象棋', date: '2026-09-17' }
+      { name: 'Teacher Kevin', score: 3880, opponent: 'Father(Dad)', mode: '🔥 連棋', date: '2026-09-27' },
+      { name: 'Alex', score: 3450, opponent: 'Father(Dad)', mode: '🔥 連棋', date: '2026-09-26' },
+      { name: 'Eric', score: 3120, opponent: 'Father(Dad)', mode: '🎯 象棋', date: '2026-09-25' },
+      { name: 'Anna', score: 2890, opponent: 'Father(Dad)', mode: '🔥 連棋', date: '2026-09-25' },
+      { name: 'Leo', score: 2650, opponent: 'Mother(Mom)', mode: '🔥 連棋', date: '2026-09-24' },
+      { name: 'Emma', score: 2480, opponent: 'Mother(Mom)', mode: '🎯 象棋', date: '2026-09-24' },
+      { name: 'Lucas', score: 2320, opponent: 'Mother(Mom)', mode: '🔥 連棋', date: '2026-09-23' },
+      { name: 'Mia', score: 2160, opponent: 'Mother(Mom)', mode: '🎯 象棋', date: '2026-09-23' },
+      { name: 'Ethan', score: 1980, opponent: 'Girl(Anna)', mode: '🔥 連棋', date: '2026-09-22' },
+      { name: 'Sophia', score: 1850, opponent: 'Girl(Anna)', mode: '🎯 象棋', date: '2026-09-22' },
+      { name: 'Oliver', score: 1720, opponent: 'Girl(Anna)', mode: '🔥 連棋', date: '2026-09-21' },
+      { name: 'Ava', score: 1610, opponent: 'Girl(Anna)', mode: '🎯 象棋', date: '2026-09-21' },
+      { name: 'Liam', score: 1530, opponent: 'Girl(Anna)', mode: '🔥 連棋', date: '2026-09-20' },
+      { name: 'Noah', score: 1420, opponent: 'Boy(Kevin)', mode: '🔥 連棋', date: '2026-09-20' },
+      { name: 'Isabella', score: 1350, opponent: 'Boy(Kevin)', mode: '🎯 象棋', date: '2026-09-19' },
+      { name: 'Mason', score: 1280, opponent: 'Boy(Kevin)', mode: '🔥 連棋', date: '2026-09-19' },
+      { name: 'Charlotte', score: 1190, opponent: 'Boy(Kevin)', mode: '🎯 象棋', date: '2026-09-18' },
+      { name: 'James', score: 1110, opponent: 'Boy(Kevin)', mode: '🔥 連棋', date: '2026-09-18' },
+      { name: 'Harper', score: 1040, opponent: 'Boy(Kevin)', mode: '🎯 象棋', date: '2026-09-17' },
+      { name: 'Benjamin', score: 960, opponent: 'Boy(Kevin)', mode: '🔥 連棋', date: '2026-09-17' }
     ];
   }
 
@@ -1564,8 +1593,8 @@ const GameApp = (() => {
 
     lb.push(newEntry);
     lb.sort((a, b) => b.score - a.score);
-    const top10 = lb.slice(0, 10);
-    saveStoredLeaderboard(top10);
+    const top20 = lb.slice(0, 20);
+    saveStoredLeaderboard(top20);
 
     const inputGroup = document.getElementById('gameover-name-input-group');
     if (inputGroup) {
@@ -1593,17 +1622,17 @@ const GameApp = (() => {
     const scoreValEl = document.getElementById('gameover-score-value');
     if (scoreValEl) scoreValEl.textContent = `${lastCalculatedScore} 分`;
 
-    // 排行榜 Top 10 資格判定
+    // 排行榜 Top 20 資格判定
     const lb = getStoredLeaderboard();
-    const minScore = lb.length < 10 ? 0 : lb[lb.length - 1].score;
-    const qualifiesTop10 = (playType === 'single' && isPlayerWin && lastCalculatedScore >= minScore);
+    const minScore = lb.length < 20 ? 0 : lb[lb.length - 1].score;
+    const qualifiesTop20 = (playType === 'single' && isPlayerWin && lastCalculatedScore >= minScore);
 
     const lbSection = document.getElementById('gameover-leaderboard-section');
     const rankTag = document.getElementById('gameover-rank-tag');
     const nameInputGroup = document.getElementById('gameover-name-input-group');
 
     if (lbSection) {
-      if (qualifiesTop10) {
+      if (qualifiesTop20) {
         lbSection.style.display = 'block';
         if (rankTag) rankTag.style.display = 'inline-block';
         if (nameInputGroup) {
