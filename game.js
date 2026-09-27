@@ -77,6 +77,7 @@ const GameApp = (() => {
   let consecutiveNoCapture = 0;
   let deadPieces = { red: [], black: [] };
   let isGameOver = false;
+  let isActionLocked = false;
 
   // --- Web Audio 零延遲合成音效 ---
   function initAudioContext() {
@@ -373,6 +374,7 @@ const GameApp = (() => {
   function startNewGame() {
     closeModals();
     isGameOver = false;
+    isActionLocked = false;
     playerColor = null;
     opponentColor = null;
     currentTurn = (playType === 'single') ? 'player' : 'p1';
@@ -561,7 +563,7 @@ const GameApp = (() => {
 
   // --- 點擊處理 ---
   function onCellClicked(r, c) {
-    if (isGameOver) return;
+    if (isGameOver || isActionLocked) return;
     initAudioContext();
 
     if (playType === 'single' && currentTurn === 'opponent') return;
@@ -651,6 +653,7 @@ const GameApp = (() => {
   function executeFlip(r, c) {
     const cell = board[r][c];
     cell.revealed = true;
+    cell.revealing = true;
     selectedPos = null;
     validTargets = [];
     consecutiveNoCapture = 0;
@@ -664,6 +667,11 @@ const GameApp = (() => {
     updateUIHeader();
     renderBoard();
     updateStatusTip(`✨ 翻開了！這是一顆【${cell.piece.color === 'red' ? '紅' : '黑'}・${cell.piece.name}】！`);
+    
+    setTimeout(() => {
+      cell.revealing = false;
+    }, 600);
+
     endTurn();
   }
 
@@ -693,61 +701,89 @@ const GameApp = (() => {
       return;
     }
 
-    // 盲吃 / 衝暗棋 (連棋模式特權：普通棋子相鄰衝暗棋)
+    // 盲吃 / 衝暗棋 (先播放揭曉翻牌動畫，看清棋子後再執行吃子)
     if (action.type === 'blind_capture') {
+      isActionLocked = true;
       toCell.revealed = true;
+      toCell.revealing = true;
       const targetPiece = toCell.piece;
       consecutiveNoCapture = 0;
+      playSynthSfx('flip');
+      renderBoard();
 
-      // 檢查是否為敵方棋子且可吃
-      if (targetPiece.color !== attacker.color && canCapture(attacker, targetPiece)) {
-        deadPieces[targetPiece.color].push(targetPiece.name);
-        toCell.piece = attacker;
-        fromCell.piece = null;
-        playSynthSfx('capture');
+      updateStatusTip(`✨ 衝暗棋揭曉！翻出了【${targetPiece.color === 'red' ? '紅' : '黑'}・${targetPiece.name}】！`);
 
-        if (attacker.rank === 1 && targetPiece.rank === 7) {
-          updateStatusTip(`💥 太神啦！【${attacker.name}】衝暗棋翻出大帥【${targetPiece.name}】並成功吃下！小卒立大功！`);
-        } else if (attacker.rank === targetPiece.rank) {
-          updateStatusTip(`⚔️ 衝暗棋同階互吃！【${attacker.name}】翻出並拼掉了【${targetPiece.color === 'red' ? '紅' : '黑'}・${targetPiece.name}】！`);
+      setTimeout(() => {
+        toCell.revealing = false;
+
+        // 檢查是否為敵方棋子且可吃
+        if (targetPiece.color !== attacker.color && canCapture(attacker, targetPiece)) {
+          deadPieces[targetPiece.color].push(targetPiece.name);
+          toCell.piece = attacker;
+          fromCell.piece = null;
+          playSynthSfx('capture');
+
+          if (attacker.rank === 1 && targetPiece.rank === 7) {
+            updateStatusTip(`💥 太神啦！【${attacker.name}】衝暗棋翻出大帥【${targetPiece.name}】並成功吃下！小卒立大功！`);
+          } else if (attacker.rank === targetPiece.rank) {
+            updateStatusTip(`⚔️ 衝暗棋同階互吃！【${attacker.name}】翻出並拼掉了【${targetPiece.color === 'red' ? '紅' : '黑'}・${targetPiece.name}】！`);
+          } else {
+            updateStatusTip(`⚔️ 盲吃成功！【${attacker.name}】衝暗棋翻出並吃掉了【${targetPiece.color === 'red' ? '紅' : '黑'}・${targetPiece.name}】！`);
+          }
+          isActionLocked = false;
+          checkComboOrEndTurn(action.r, action.c);
+        } else if (targetPiece.color === attacker.color) {
+          // 翻出同陣營友軍 -> 揭曉成功，但不能吃，結束連吃
+          updateStatusTip(`🛡️ 衝暗棋翻出自己人的【${targetPiece.color === 'red' ? '紅' : '黑'}・${targetPiece.name}】！無法吃子，揭曉成功，換對方行動。`);
+          isActionLocked = false;
+          renderBoard();
+          renderGraveyards();
+          finishCombo();
         } else {
-          updateStatusTip(`⚔️ 盲吃成功！【${attacker.name}】衝暗棋翻出並吃掉了【${targetPiece.color === 'red' ? '紅' : '黑'}・${targetPiece.name}】！`);
+          // 翻出敵方但吃不下 (例如士翻出帥、或馬翻出車、或帥翻出兵)
+          updateStatusTip(`⚠️ 衝暗棋翻出比自己大的【${targetPiece.color === 'red' ? '紅' : '黑'}・${targetPiece.name}】！【${attacker.name}】吃不下，揭曉成功，換對方行動。`);
+          isActionLocked = false;
+          renderBoard();
+          renderGraveyards();
+          finishCombo();
         }
-        checkComboOrEndTurn(action.r, action.c);
-      } else if (targetPiece.color === attacker.color) {
-        // 翻出同陣營友軍 -> 揭曉成功，但不能吃，結束連吃
-        playSynthSfx('flip');
-        updateStatusTip(`🛡️ 衝暗棋翻出自己人的【${targetPiece.color === 'red' ? '紅' : '黑'}・${targetPiece.name}】！無法吃子，揭曉成功，換對方行動。`);
-        finishCombo();
-      } else {
-        // 翻出敵方但吃不下 (例如士翻出帥、或馬翻出車、或帥翻出兵)
-        playSynthSfx('flip');
-        updateStatusTip(`⚠️ 衝暗棋翻出比自己大的【${targetPiece.color === 'red' ? '紅' : '黑'}・${targetPiece.name}】！【${attacker.name}】吃不下，揭曉成功，換對方行動。`);
-        finishCombo();
-      }
+      }, 700);
+
       return;
     }
 
-    // 炮跳打暗棋 (連棋模式特權)
+    // 炮跳打暗棋 (先翻開揭曉動畫，再判定擊殺或友軍返回)
     if (action.type === 'cannon_unrevealed') {
+      isActionLocked = true;
       toCell.revealed = true;
+      toCell.revealing = true;
       const targetPiece = toCell.piece;
       consecutiveNoCapture = 0;
+      playSynthSfx('flip');
+      renderBoard();
 
-      if (targetPiece.color !== attacker.color) {
-        deadPieces[targetPiece.color].push(targetPiece.name);
-        toCell.piece = attacker;
-        fromCell.piece = null;
-        playSynthSfx('capture');
-        updateStatusTip(`💥 炮翻山跳吃！成功擊殺敵方未翻開的【${targetPiece.name}】！`);
-        checkComboOrEndTurn(action.r, action.c);
-      } else {
-        playSynthSfx('flip');
-        updateStatusTip(`🛡️ 炮跳過去揭曉發現是自己人的【${targetPiece.name}】！揭曉成功，炮返回原位。`);
-        renderBoard();
-        renderGraveyards();
-        finishCombo();
-      }
+      updateStatusTip(`💥 炮翻山跳向暗棋！翻出了【${targetPiece.color === 'red' ? '紅' : '黑'}・${targetPiece.name}】！`);
+
+      setTimeout(() => {
+        toCell.revealing = false;
+
+        if (targetPiece.color !== attacker.color) {
+          deadPieces[targetPiece.color].push(targetPiece.name);
+          toCell.piece = attacker;
+          fromCell.piece = null;
+          playSynthSfx('capture');
+          updateStatusTip(`💥 炮翻山跳吃！成功擊殺敵方【${targetPiece.color === 'red' ? '紅' : '黑'}・${targetPiece.name}】！`);
+          isActionLocked = false;
+          checkComboOrEndTurn(action.r, action.c);
+        } else {
+          updateStatusTip(`🛡️ 炮跳過去揭曉發現是自己人的【${targetPiece.name}】！無法吃子，揭曉成功，炮返回原位。`);
+          isActionLocked = false;
+          renderBoard();
+          renderGraveyards();
+          finishCombo();
+        }
+      }, 700);
+
       return;
     }
 
@@ -813,6 +849,7 @@ const GameApp = (() => {
   }
 
   function finishCombo() {
+    if (isActionLocked) return;
     comboActive = false;
     comboPos = null;
     comboCount = 0;
@@ -1238,6 +1275,9 @@ const GameApp = (() => {
           } else {
             pieceDiv.classList.add('revealed', cell.piece.color);
             pieceDiv.textContent = cell.piece.name;
+            if (cell.revealing) {
+              pieceDiv.classList.add('blind-revealing');
+            }
           }
 
           if (selectedPos && selectedPos.r === r && selectedPos.c === c) {
