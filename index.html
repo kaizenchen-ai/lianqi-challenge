@@ -48,6 +48,12 @@
         <button class="btn-secondary" onclick="GameApp.openRules()">
           <span>📖</span> 玩法與規則說明
         </button>
+        <button class="btn-secondary" onclick="GameApp.openLeaderboard()">
+          <span>🏆</span> 英雄排行榜
+        </button>
+        <button class="btn-secondary" onclick="GameApp.openStatsModal()">
+          <span>📊</span> 對戰戰績統計
+        </button>
         <button id="btn-toggle-sound" class="btn-secondary" onclick="GameApp.toggleSound()">
           <span id="sound-icon">🔊</span> 語音音效：開
         </button>
@@ -83,6 +89,25 @@
         <button id="btn-tab-single" class="tab-btn active" onclick="GameApp.setPlayType('single')">🤖 單人對抗 AI</button>
         <button id="btn-tab-dual" class="tab-btn" onclick="GameApp.setPlayType('dual')">👥 雙人面對面</button>
       </div>
+
+      <!-- 電腦對戰即時勝率統計總覽條 -->
+      <div class="ai-battle-stats-bar" id="ai-stats-summary-bar" onclick="GameApp.openStatsModal()">
+        <div class="stats-bar-item">
+          <span class="stats-label">總戰績</span>
+          <span class="stats-value" id="stats-summary-record">0 戰 0 勝</span>
+        </div>
+        <div class="stats-divider">|</div>
+        <div class="stats-bar-item">
+          <span class="stats-label">總勝率</span>
+          <span class="stats-value highlight" id="stats-summary-winrate">0%</span>
+        </div>
+        <div class="stats-divider">|</div>
+        <div class="stats-bar-item">
+          <span class="stats-label">最高連勝</span>
+          <span class="stats-value" id="stats-summary-streak">0 連勝</span>
+        </div>
+        <div class="stats-bar-btn">📊 詳情 ➔</div>
+      </div>
       
       <!-- 單人對手清單 -->
       <div id="panel-single-opponents" class="opponent-grid">
@@ -90,28 +115,36 @@
           <div class="opponent-avatar">👦</div>
           <div class="opponent-name">Boy</div>
           <div class="opponent-code">(Kevin)</div>
-          <div class="opponent-desc">入門練習・活潑開朗<br>適合熟悉吃子節奏！</div>
+          <div class="opponent-badge diff-easy">⭐ 最弱 (入門)</div>
+          <div class="opponent-stat-pill" id="stat-opp-eric">0 戰 0 勝 (勝率 0%)</div>
+          <div class="opponent-desc">入門練習・活潑開朗<br>適合新手熟悉節奏！</div>
         </div>
 
         <div class="opponent-card" onclick="GameApp.selectOpponent('ana')">
           <div class="opponent-avatar">👧</div>
           <div class="opponent-name">Girl</div>
           <div class="opponent-code">(Anna)</div>
+          <div class="opponent-badge diff-medium">⭐⭐ 中等 (進階)</div>
+          <div class="opponent-stat-pill" id="stat-opp-ana">0 戰 0 勝 (勝率 0%)</div>
           <div class="opponent-desc">靈活機智・穩扎穩打<br>注意攻守平衡！</div>
-        </div>
-
-        <div class="opponent-card" onclick="GameApp.selectOpponent('davis')">
-          <div class="opponent-avatar">👨</div>
-          <div class="opponent-name">Father</div>
-          <div class="opponent-code">(Dad)</div>
-          <div class="opponent-desc">沉著老練・棋藝高超<br>善用車馬炮進攻佈局！</div>
         </div>
 
         <div class="opponent-card" onclick="GameApp.selectOpponent('michelle')">
           <div class="opponent-avatar">👩</div>
           <div class="opponent-name">Mother</div>
           <div class="opponent-code">(Mom)</div>
-          <div class="opponent-desc">細心縝密・高手挑戰<br>深謀遠慮，考驗大局觀！</div>
+          <div class="opponent-badge diff-hard">⭐⭐⭐ 難 (專家)</div>
+          <div class="opponent-stat-pill" id="stat-opp-michelle">0 戰 0 勝 (勝率 0%)</div>
+          <div class="opponent-desc">細心縝密・高手挑戰<br>深謀遠慮，善於避險反擊！</div>
+        </div>
+
+        <div class="opponent-card" onclick="GameApp.selectOpponent('davis')">
+          <div class="opponent-avatar">👨</div>
+          <div class="opponent-name">Father</div>
+          <div class="opponent-code">(Dad)</div>
+          <div class="opponent-badge diff-master">⭐⭐⭐⭐ 最難 (大師)</div>
+          <div class="opponent-stat-pill" id="stat-opp-davis">0 戰 0 勝 (勝率 0%)</div>
+          <div class="opponent-desc">沉著老練・頂尖棋藝<br>精算威脅、車馬炮致命佈局！</div>
         </div>
       </div>
 
@@ -133,6 +166,7 @@
     <!-- 畫面 3：遊戲主盤面 (4x8) -->
     <section id="screen-game" class="view-screen">
       <header class="game-header">
+        <!-- 最左側：Player 1 -->
         <div class="player-info-box" id="info-p1">
           <div class="player-badge" id="badge-p1">🧑</div>
           <div class="player-meta">
@@ -141,21 +175,28 @@
           </div>
         </div>
 
-        <div class="center-mode-tag" id="game-active-mode-tag">🔥 連棋 (連吃)</div>
+        <!-- 正中央：左 2 功能按鈕 + 加大遊戲標題 + 右 2 功能按鈕 -->
+        <div class="header-center-area">
+          <div class="header-nav-group left-group">
+            <button class="icon-btn" title="回主選單" onclick="GameApp.showHome()">🏠</button>
+            <button class="icon-btn" title="規則說明" onclick="GameApp.openRules()">📖</button>
+          </div>
 
+          <div class="center-mode-title" id="game-active-mode-tag">🔥 連棋</div>
+
+          <div class="header-nav-group right-group">
+            <button class="icon-btn" id="btn-ingame-sound" title="切換音效" onclick="GameApp.toggleSound()">🔊</button>
+            <button class="icon-btn" title="重新一局" onclick="GameApp.restartCurrentGame()">🔄</button>
+          </div>
+        </div>
+
+        <!-- 最右側：Player 2 -->
         <div class="player-info-box" id="info-p2">
           <div class="player-meta" style="text-align: right;">
             <span class="player-role-name" id="name-p2">Boy(Kevin)</span>
             <span class="turn-pill wait-turn" id="turn-p2">❓ Undecided (Waiting)</span>
           </div>
-          <div class="player-badge" id="badge-p2">🤖</div>
-        </div>
-
-        <div class="game-quick-tools">
-          <button class="icon-btn" title="規則說明" onclick="GameApp.openRules()">📖</button>
-          <button class="icon-btn" id="btn-ingame-sound" title="切換音效" onclick="GameApp.toggleSound()">🔊</button>
-          <button class="icon-btn" title="重新一局" onclick="GameApp.restartCurrentGame()">🔄</button>
-          <button class="icon-btn" title="回主選單" onclick="GameApp.showHome()">🏠</button>
+          <div class="player-badge" id="badge-p2">👦</div>
         </div>
       </header>
 
@@ -208,15 +249,108 @@
           <span>🎙️</span> <span id="voice-indicator">語音播放中...</span>
         </div>
 
+        <!-- 本局得分與排行榜登錄區 -->
+        <div id="gameover-leaderboard-section" class="gameover-score-card">
+          <div class="gameover-score-row">
+            <span>本局得分：<strong id="gameover-score-value" class="highlight-score">0 分</strong></span>
+            <span id="gameover-rank-tag" class="rank-badge">🏆 榮登 Top 10！</span>
+          </div>
+          <div id="gameover-name-input-group" class="name-input-group">
+            <input type="text" id="input-player-name" placeholder="請輸入大名登上排行榜..." maxlength="12">
+            <button class="btn-primary btn-save-record" onclick="GameApp.submitScoreRecord()">儲存紀錄</button>
+          </div>
+        </div>
+
+        <!-- 對戰統計即時快報 -->
+        <div class="gameover-match-stat" id="gameover-match-stat">
+          對戰紀錄：0 戰 0 勝（勝率 0%）
+        </div>
+
         <div class="modal-actions">
           <button class="btn-primary" onclick="GameApp.restartCurrentGame()">
             <span>🔄</span> 再玩一局！
+          </button>
+          <button class="btn-secondary" onclick="GameApp.openLeaderboard()">
+            <span>🏆</span> 查看排行榜 (Top 10)
+          </button>
+          <button class="btn-secondary" onclick="GameApp.openStatsModal()">
+            <span>📊</span> 查看對戰統計
           </button>
           <button class="btn-secondary" onclick="GameApp.showOpponents()">
             <span>👥</span> 換個對手挑戰
           </button>
           <button class="btn-secondary" onclick="GameApp.showHome()">
             <span>🏠</span> 切換玩法選單
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 彈窗 3：英雄排行榜 Top 10 -->
+    <div id="modal-leaderboard" class="modal-overlay">
+      <div class="modal-content" style="max-width: 640px;">
+        <h2 class="modal-title">🏆 象棋英雄排行榜 (Top 10)</h2>
+        <p class="modal-subtitle">擊敗更強對手、創造更高 Combo 與少步數可獲得更高積分！</p>
+
+        <div class="leaderboard-table-wrapper">
+          <table class="leaderboard-table">
+            <thead>
+              <tr>
+                <th style="width: 15%;">名次</th>
+                <th style="width: 25%;">英雄大名</th>
+                <th style="width: 18%;">積分</th>
+                <th style="width: 22%;">擊敗對手</th>
+                <th style="width: 20%;">模式</th>
+              </tr>
+            </thead>
+            <tbody id="leaderboard-tbody">
+              <!-- 動態注入 10 筆紀錄 -->
+            </tbody>
+          </table>
+        </div>
+
+        <div class="modal-actions" style="margin-top: 16px;">
+          <button class="btn-primary" onclick="GameApp.closeLeaderboard()">
+            <span>✅</span> 關閉排行榜
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 彈窗 4：電腦對戰勝率與戰績統計 -->
+    <div id="modal-stats" class="modal-overlay">
+      <div class="modal-content" style="max-width: 620px;">
+        <h2 class="modal-title">📊 電腦對戰數據統計</h2>
+        <p class="modal-subtitle">各角色對戰勝率、總局數與連勝紀錄</p>
+
+        <!-- 總覽卡片 -->
+        <div class="stats-overview-grid">
+          <div class="stat-box">
+            <div class="stat-box-num" id="stat-total-games">0</div>
+            <div class="stat-box-lbl">總對局數</div>
+          </div>
+          <div class="stat-box">
+            <div class="stat-box-num highlight-win" id="stat-total-wins">0</div>
+            <div class="stat-box-lbl">獲勝局數</div>
+          </div>
+          <div class="stat-box">
+            <div class="stat-box-num highlight-loss" id="stat-total-losses">0</div>
+            <div class="stat-box-lbl">失敗局數</div>
+          </div>
+          <div class="stat-box">
+            <div class="stat-box-num highlight-rate" id="stat-total-winrate">0%</div>
+            <div class="stat-box-lbl">總體勝率</div>
+          </div>
+        </div>
+
+        <!-- 各角色勝率表 -->
+        <div class="opponent-stats-list" id="opponent-stats-list">
+          <!-- 4 個角色對戰進度條 -->
+        </div>
+
+        <div class="modal-actions" style="margin-top: 16px;">
+          <button class="btn-primary" onclick="GameApp.closeStatsModal()">
+            <span>✅</span> 關閉統計
           </button>
         </div>
       </div>

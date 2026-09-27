@@ -33,9 +33,9 @@ const GameApp = (() => {
 
   const OPPONENT_PROFILES = {
     eric: { name: 'Boy(Kevin)', avatar: '👦', desc: '入門練習・活潑開朗', level: 1 },
-    ana: { name: 'Girl(Anna)', avatar: '👧', desc: '機智靈活・穩健防守', level: 2 },
-    davis: { name: 'Father(Dad)', avatar: '👨', desc: '沉著老練・車馬炮佈局', level: 3 },
-    michelle: { name: 'Mother(Mom)', avatar: '👩', desc: '細心縝密・高手挑戰', level: 4 }
+    ana: { name: 'Girl(Anna)', avatar: '👧', desc: '靈活機智・穩扎穩打', level: 2 },
+    michelle: { name: 'Mother(Mom)', avatar: '👩', desc: '細心縝密・高手挑戰', level: 3 },
+    davis: { name: 'Father(Dad)', avatar: '👨', desc: '沉著老練・頂尖棋藝', level: 4 }
   };
 
   // --- 語音音檔路徑 ---
@@ -78,6 +78,9 @@ const GameApp = (() => {
   let deadPieces = { red: [], black: [] };
   let isGameOver = false;
   let isActionLocked = false;
+  let currentMatchMoves = 0;
+  let currentMatchMaxCombo = 0;
+  let lastCalculatedScore = 0;
 
   // --- Web Audio 零延遲合成音效 ---
   function initAudioContext() {
@@ -239,6 +242,7 @@ const GameApp = (() => {
 
   function showOpponents() {
     closeModals();
+    renderStatsUI();
     showScreen('screen-opponents');
   }
 
@@ -659,6 +663,10 @@ const GameApp = (() => {
     consecutiveNoCapture = 0;
     playSynthSfx('flip');
 
+    if (currentTurn === 'player' || currentTurn === 'p1') {
+      currentMatchMoves++;
+    }
+
     if (playerColor === null) {
       playerColor = cell.piece.color;
       opponentColor = (playerColor === 'red') ? 'black' : 'red';
@@ -682,6 +690,10 @@ const GameApp = (() => {
 
     selectedPos = null;
     validTargets = [];
+
+    if (currentTurn === 'player' || currentTurn === 'p1') {
+      currentMatchMoves++;
+    }
 
     if (action.type === 'move') {
       toCell.piece = attacker;
@@ -828,6 +840,7 @@ const GameApp = (() => {
 
     if (capturableTargets.length > 0) {
       comboCount++;
+      currentMatchMaxCombo = Math.max(currentMatchMaxCombo, comboCount);
       comboPos = { r: newR, c: newC };
       validTargets = capturableTargets;
       selectedPos = { r: newR, c: newC };
@@ -923,13 +936,80 @@ const GameApp = (() => {
     }
   }
 
-  // --- 電腦 AI 行動決策 ---
+  // --- 棋子價值評估輔助 ---
+  function getPieceRankValue(piece) {
+    if (!piece) return 0;
+    if (piece.isCannon) return 38;
+    switch (piece.rank) {
+      case 7: return 100; // 將/帥
+      case 6: return 50;  // 士/仕
+      case 5: return 32;  // 象/相
+      case 4: return 45;  // 車/俥
+      case 3: return 28;  // 馬/傌
+      case 1: return 16;  // 卒/兵
+      default: return 20;
+    }
+  }
+
+  // 檢查某座標 (r, c) 若放置指定棋子，是否正受敵方明棋直接威脅
+  function isSquareThreatenedByEnemy(r, c, attackerColor, rank, isCannon) {
+    const enemyColor = (attackerColor === 'red') ? 'black' : 'red';
+    const fakePiece = { color: attackerColor, rank: rank, isCannon: isCannon };
+
+    // 檢查相鄰 4 格敵方普通棋子
+    const dirs = [[-1, 0], [1, 0], [0, -1], [0, 1]];
+    for (const [dr, dc] of dirs) {
+      const nr = r + dr;
+      const nc = c + dc;
+      if (nr >= 0 && nr < ROWS && nc >= 0 && nc < COLS) {
+        const cell = board[nr][nc];
+        if (cell.revealed && cell.piece && cell.piece.color === enemyColor && !cell.piece.isCannon) {
+          if (canCapture(cell.piece, fakePiece)) {
+            return { threatened: true, attackerPiece: cell.piece, fromR: nr, fromC: nc };
+          }
+        }
+      }
+    }
+
+    // 檢查敵方炮翻山跳吃威脅 (沿橫向、直向搜尋跳板)
+    for (let row = 0; row < ROWS; row++) {
+      for (let col = 0; col < COLS; col++) {
+        const cell = board[row][col];
+        if (cell.revealed && cell.piece && cell.piece.color === enemyColor && cell.piece.isCannon) {
+          if (row === r || col === c) {
+            let screenCount = 0;
+            if (row === r) {
+              const minC = Math.min(col, c);
+              const maxC = Math.max(col, c);
+              for (let scanC = minC + 1; scanC < maxC; scanC++) {
+                if (board[r][scanC].piece) screenCount++;
+              }
+            } else {
+              const minR = Math.min(row, r);
+              const maxR = Math.max(row, r);
+              for (let scanR = minR + 1; scanR < maxR; scanR++) {
+                if (board[scanR][c].piece) screenCount++;
+              }
+            }
+            if (screenCount === 1) {
+              return { threatened: true, attackerPiece: cell.piece, fromR: row, fromC: col };
+            }
+          }
+        }
+      }
+    }
+
+    return { threatened: false };
+  }
+
+  // --- 電腦 AI 行動決策 (4 級智慧評估引擎) ---
   function executeAiTurn() {
     if (isGameOver || currentTurn !== 'opponent') return;
 
     const aiColor = opponentColor;
-    const aiLevel = OPPONENT_PROFILES[opponentKey].level;
+    const aiLevel = OPPONENT_PROFILES[opponentKey].level; // 1: Boy, 2: Girl, 3: Mother, 4: Father
 
+    // 收集所有未翻開的暗棋格子
     const unrevealedCells = [];
     for (let r = 0; r < ROWS; r++) {
       for (let c = 0; c < COLS; c++) {
@@ -939,6 +1019,7 @@ const GameApp = (() => {
       }
     }
 
+    // 收集 AI 所有合法行動
     const allActions = [];
     for (let r = 0; r < ROWS; r++) {
       for (let c = 0; c < COLS; c++) {
@@ -952,14 +1033,15 @@ const GameApp = (() => {
       }
     }
 
+    // 分類
     const captures = allActions.filter(x => x.action.type === 'capture');
     const blindCaptures = allActions.filter(x => x.action.type === 'blind_capture');
     const cannonUnrevealed = allActions.filter(x => x.action.type === 'cannon_unrevealed');
     const normalMoves = allActions.filter(x => x.action.type === 'move');
 
-    // Level 1 (Eric)
+    // === LEVEL 1: Boy (Kevin) - 最弱 / 入門級 ===
     if (aiLevel === 1) {
-      if (unrevealedCells.length > 0 && Math.random() < 0.5) {
+      if (unrevealedCells.length > 0 && Math.random() < 0.55) {
         const pick = unrevealedCells[Math.floor(Math.random() * unrevealedCells.length)];
         executeFlip(pick.r, pick.c);
         return;
@@ -986,61 +1068,205 @@ const GameApp = (() => {
       }
     }
 
-    // Level 2, 3, 4
-    if (captures.length > 0) {
-      captures.sort((a, b) => {
-        const targetA = board[a.action.r][a.action.c].piece;
-        const targetB = board[b.action.r][b.action.c].piece;
-        const valA = targetA ? targetA.rank : 0;
-        const valB = targetB ? targetB.rank : 0;
-        return valB - valA;
-      });
-      const topPick = captures[0];
-      executeCaptureOrMove(topPick.fromR, topPick.fromC, topPick.action);
-      return;
-    }
+    // === LEVEL 2: Girl (Anna) - 中等 / 進階級 ===
+    if (aiLevel === 2) {
+      if (captures.length > 0) {
+        captures.sort((a, b) => {
+          const targetA = board[a.action.r][a.action.c].piece;
+          const targetB = board[b.action.r][b.action.c].piece;
+          return getPieceRankValue(targetB) - getPieceRankValue(targetA);
+        });
+        executeCaptureOrMove(captures[0].fromR, captures[0].fromC, captures[0].action);
+        return;
+      }
 
-    if (cannonUnrevealed.length > 0 && (aiLevel >= 3 || Math.random() < 0.45)) {
-      const pick = cannonUnrevealed[Math.floor(Math.random() * cannonUnrevealed.length)];
-      executeCaptureOrMove(pick.fromR, pick.fromC, pick.action);
-      return;
-    }
+      // 帥/將被威脅時優先逃跑
+      const threatenedGenerals = allActions.filter(x => x.piece.rank === 7 && isSquareThreatenedByEnemy(x.fromR, x.fromC, aiColor, 7, false).threatened);
+      if (threatenedGenerals.length > 0) {
+        const safeEscapes = threatenedGenerals.filter(x => !isSquareThreatenedByEnemy(x.action.r, x.action.c, aiColor, 7, false).threatened);
+        if (safeEscapes.length > 0) {
+          executeCaptureOrMove(safeEscapes[0].fromR, safeEscapes[0].fromC, safeEscapes[0].action);
+          return;
+        }
+      }
 
-    // 智能衝暗棋：若有較大棋子（將士象車）鄰近暗棋，優先衝暗棋盲吃
-    if (blindCaptures.length > 0 && (aiLevel >= 2)) {
-      const highRankBlinds = blindCaptures.filter(x => x.piece.rank >= 4);
-      if (highRankBlinds.length > 0 && (aiLevel >= 3 || Math.random() < 0.65)) {
-        const pick = highRankBlinds[Math.floor(Math.random() * highRankBlinds.length)];
+      if (cannonUnrevealed.length > 0 && Math.random() < 0.5) {
+        const pick = cannonUnrevealed[Math.floor(Math.random() * cannonUnrevealed.length)];
         executeCaptureOrMove(pick.fromR, pick.fromC, pick.action);
+        return;
+      }
+
+      if (blindCaptures.length > 0 && Math.random() < 0.6) {
+        const highRank = blindCaptures.filter(x => x.piece.rank >= 4);
+        const pool = highRank.length > 0 ? highRank : blindCaptures;
+        const pick = pool[Math.floor(Math.random() * pool.length)];
+        executeCaptureOrMove(pick.fromR, pick.fromC, pick.action);
+        return;
+      }
+
+      if (unrevealedCells.length > 0 && Math.random() < 0.45) {
+        const pick = unrevealedCells[Math.floor(Math.random() * unrevealedCells.length)];
+        executeFlip(pick.r, pick.c);
+        return;
+      }
+
+      if (normalMoves.length > 0) {
+        const pick = normalMoves[Math.floor(Math.random() * normalMoves.length)];
+        executeCaptureOrMove(pick.fromR, pick.fromC, pick.action);
+        return;
+      }
+
+      if (unrevealedCells.length > 0) {
+        const pick = unrevealedCells[Math.floor(Math.random() * unrevealedCells.length)];
+        executeFlip(pick.r, pick.c);
         return;
       }
     }
 
-    if (unrevealedCells.length > 0 && (normalMoves.length === 0 || Math.random() < 0.5)) {
-      const pick = unrevealedCells[Math.floor(Math.random() * unrevealedCells.length)];
-      executeFlip(pick.r, pick.c);
+    // === LEVEL 3 (Mother / 難) & LEVEL 4 (Father / 最難) 深度啟發評估 ===
+    const evaluatedMoves = [];
+
+    // (A) 評估吃子行動
+    captures.forEach(item => {
+      const targetPiece = board[item.action.r][item.action.c].piece;
+      const targetVal = getPieceRankValue(targetPiece);
+      const attackerVal = getPieceRankValue(item.piece);
+
+      const postThreat = isSquareThreatenedByEnemy(item.action.r, item.action.c, aiColor, item.piece.rank, item.piece.isCannon);
+      let score = 200 + targetVal * 3;
+
+      if (postThreat.threatened) {
+        const riskLoss = attackerVal;
+        if (targetVal < riskLoss) {
+          score = aiLevel === 4 ? -350 : -120;
+        } else if (targetVal === riskLoss) {
+          score += 50;
+        } else {
+          score += (targetVal - riskLoss) * 2;
+        }
+      } else {
+        score += 160;
+      }
+
+      const currThreat = isSquareThreatenedByEnemy(item.fromR, item.fromC, aiColor, item.piece.rank, item.piece.isCannon);
+      if (currThreat.threatened) {
+        score += attackerVal * 2;
+      }
+
+      evaluatedMoves.push({ type: 'move', fromR: item.fromR, fromC: item.fromC, action: item.action, score });
+    });
+
+    // (B) 評估普通走法與躲避威脅
+    normalMoves.forEach(item => {
+      const attackerVal = getPieceRankValue(item.piece);
+      const currThreat = isSquareThreatenedByEnemy(item.fromR, item.fromC, aiColor, item.piece.rank, item.piece.isCannon);
+      const postThreat = isSquareThreatenedByEnemy(item.action.r, item.action.c, aiColor, item.piece.rank, item.piece.isCannon);
+
+      let score = 20;
+
+      // 1. 成功逃離危險
+      if (currThreat.threatened && !postThreat.threatened) {
+        score = 240 + attackerVal * 2.5;
+      } else if (currThreat.threatened && postThreat.threatened) {
+        score = 10;
+      } else if (!currThreat.threatened && postThreat.threatened) {
+        score = aiLevel === 4 ? -800 : -450;
+      }
+
+      // 2. 走到新位置能威脅玩家棋子 (進攻壓制)
+      if (!postThreat.threatened && (aiLevel >= 3)) {
+        const dirs = [[-1, 0], [1, 0], [0, -1], [0, 1]];
+        dirs.forEach(([dr, dc]) => {
+          const tr = item.action.r + dr;
+          const tc = item.action.c + dc;
+          if (tr >= 0 && tr < ROWS && tc >= 0 && tc < COLS) {
+            const tgt = board[tr][tc];
+            if (tgt.revealed && tgt.piece && tgt.piece.color !== aiColor) {
+              if (canCapture(item.piece, tgt.piece)) {
+                score += 50 + getPieceRankValue(tgt.piece) * 0.8;
+              }
+            }
+          }
+        });
+      }
+
+      // 3. 佔據中心區域控制權
+      const distToCenter = Math.abs(item.action.r - 1.5) + Math.abs(item.action.c - 3.5);
+      score += (5 - distToCenter) * 2;
+
+      evaluatedMoves.push({ type: 'move', fromR: item.fromR, fromC: item.fromC, action: item.action, score });
+    });
+
+    // (C) 評估炮翻山跳暗棋
+    cannonUnrevealed.forEach(item => {
+      let score = 95;
+      const postThreat = isSquareThreatenedByEnemy(item.action.r, item.action.c, aiColor, item.piece.rank, true);
+      if (postThreat.threatened) {
+        score = aiLevel === 4 ? -160 : 20;
+      }
+      evaluatedMoves.push({ type: 'move', fromR: item.fromR, fromC: item.fromC, action: item.action, score });
+    });
+
+    // (D) 評估衝暗棋 (Blind Capture)
+    blindCaptures.forEach(item => {
+      const p = item.piece;
+      let score = 50;
+      if (p.rank === 7) score = 170; // 帥/將
+      else if (p.rank === 6) score = 130; // 士/仕
+      else if (p.rank === 5) score = 100; // 象/相
+      else if (p.rank === 4) score = 90;  // 車/俥
+      else if (p.rank === 1) score = 70;  // 兵/卒
+      else score = 40;
+
+      const postThreat = isSquareThreatenedByEnemy(item.action.r, item.action.c, aiColor, p.rank, p.isCannon);
+      if (postThreat.threatened) {
+        score -= getPieceRankValue(p) * 1.5;
+      }
+
+      evaluatedMoves.push({ type: 'move', fromR: item.fromR, fromC: item.fromC, action: item.action, score });
+    });
+
+    // (E) 評估翻開暗棋 (Flip Dark Piece)
+    unrevealedCells.forEach(cell => {
+      let score = 70;
+      let enemyThreatCount = 0;
+      let friendlyProtectCount = 0;
+      const dirs = [[-1, 0], [1, 0], [0, -1], [0, 1]];
+      dirs.forEach(([dr, dc]) => {
+        const nr = cell.r + dr;
+        const nc = cell.c + dc;
+        if (nr >= 0 && nr < ROWS && nc >= 0 && nc < COLS) {
+          const adj = board[nr][nc];
+          if (adj.revealed && adj.piece) {
+            if (adj.piece.color !== aiColor) enemyThreatCount++;
+            else friendlyProtectCount++;
+          }
+        }
+      });
+
+      if (enemyThreatCount > 0) score -= enemyThreatCount * 18;
+      if (friendlyProtectCount > 0) score += friendlyProtectCount * 12;
+
+      evaluatedMoves.push({ type: 'flip', r: cell.r, c: cell.c, score });
+    });
+
+    if (evaluatedMoves.length === 0) {
+      triggerGameOver('player', '對手已無棋可走（困斃）！你獲勝了！');
       return;
     }
 
-    if (normalMoves.length > 0) {
-      const pick = normalMoves[Math.floor(Math.random() * normalMoves.length)];
-      executeCaptureOrMove(pick.fromR, pick.fromC, pick.action);
-      return;
+    evaluatedMoves.sort((a, b) => b.score - a.score);
+
+    let bestPick = evaluatedMoves[0];
+    if (aiLevel === 3 && evaluatedMoves.length > 1 && Math.random() < 0.12) {
+      bestPick = evaluatedMoves[1];
     }
 
-    if (blindCaptures.length > 0) {
-      const pick = blindCaptures[Math.floor(Math.random() * blindCaptures.length)];
-      executeCaptureOrMove(pick.fromR, pick.fromC, pick.action);
-      return;
+    if (bestPick.type === 'flip') {
+      executeFlip(bestPick.r, bestPick.c);
+    } else {
+      executeCaptureOrMove(bestPick.fromR, bestPick.fromC, bestPick.action);
     }
-
-    if (unrevealedCells.length > 0) {
-      const pick = unrevealedCells[Math.floor(Math.random() * unrevealedCells.length)];
-      executeFlip(pick.r, pick.c);
-      return;
-    }
-
-    triggerGameOver('player', '對手已無棋可走（困斃）！你獲勝了！');
   }
 
   function executeAiComboMove() {
@@ -1049,27 +1275,29 @@ const GameApp = (() => {
     const capturable = actions.filter(a => a.type === 'capture' || a.type === 'blind_capture' || a.type === 'cannon_unrevealed');
 
     if (capturable.length > 0) {
+      const aiPiece = board[comboPos.r][comboPos.c].piece;
+      const aiLevel = OPPONENT_PROFILES[opponentKey].level;
+
       // 優先吃已知高價值明棋
       const revealedCaptures = capturable.filter(a => a.type === 'capture');
       if (revealedCaptures.length > 0) {
         revealedCaptures.sort((a, b) => {
           const targetA = board[a.r][a.c].piece;
           const targetB = board[b.r][b.c].piece;
-          const valA = targetA ? targetA.rank : 0;
-          const valB = targetB ? targetB.rank : 0;
-          return valB - valA;
+          return getPieceRankValue(targetB) - getPieceRankValue(targetA);
         });
         executeCaptureOrMove(comboPos.r, comboPos.c, revealedCaptures[0]);
         return;
       }
 
-      // 若無已知明棋，大棋子（rank >= 4）或較高機率繼續衝暗棋盲吃
-      const aiPiece = board[comboPos.r][comboPos.c].piece;
+      // 若無已知明棋，高等級或大棋子持續衝暗棋盲吃
       const blindTargets = capturable.filter(a => a.type === 'blind_capture' || a.type === 'cannon_unrevealed');
-      if (blindTargets.length > 0 && (aiPiece.rank >= 4 || Math.random() < 0.65)) {
-        const pick = blindTargets[Math.floor(Math.random() * blindTargets.length)];
-        executeCaptureOrMove(comboPos.r, comboPos.c, pick);
-        return;
+      if (blindTargets.length > 0) {
+        if (aiPiece.rank >= 4 || (aiLevel >= 3 && aiPiece.rank >= 3) || (aiLevel <= 2 && Math.random() < 0.6)) {
+          const pick = blindTargets[Math.floor(Math.random() * blindTargets.length)];
+          executeCaptureOrMove(comboPos.r, comboPos.c, pick);
+          return;
+        }
       }
 
       finishCombo();
@@ -1112,6 +1340,240 @@ const GameApp = (() => {
     return false;
   }
 
+  // --- 戰績統計與排行榜資料持久化系統 ---
+  const STATS_STORAGE_KEY = 'lianqi_chess_stats_v1';
+  const LEADERBOARD_STORAGE_KEY = 'lianqi_leaderboard_v1';
+
+  function getStoredStats() {
+    try {
+      const raw = localStorage.getItem(STATS_STORAGE_KEY);
+      if (raw) return JSON.parse(raw);
+    } catch (e) {}
+    return {
+      totalGames: 0,
+      totalWins: 0,
+      totalLosses: 0,
+      currentStreak: 0,
+      maxStreak: 0,
+      opponents: {
+        eric: { games: 0, wins: 0, losses: 0 },
+        ana: { games: 0, wins: 0, losses: 0 },
+        michelle: { games: 0, wins: 0, losses: 0 },
+        davis: { games: 0, wins: 0, losses: 0 }
+      }
+    };
+  }
+
+  function saveStoredStats(stats) {
+    try {
+      localStorage.setItem(STATS_STORAGE_KEY, JSON.stringify(stats));
+    } catch (e) {}
+  }
+
+  function getStoredLeaderboard() {
+    try {
+      const raw = localStorage.getItem(LEADERBOARD_STORAGE_KEY);
+      if (raw) return JSON.parse(raw);
+    } catch (e) {}
+    return [
+      { name: 'Teacher Kevin', score: 3450, opponent: 'Father(Dad)', mode: '🔥 連棋', date: '2026-09-26' },
+      { name: 'Alex', score: 2980, opponent: 'Father(Dad)', mode: '🔥 連棋', date: '2026-09-25' },
+      { name: 'Anna', score: 2520, opponent: 'Mother(Mom)', mode: '🎯 象棋', date: '2026-09-24' },
+      { name: 'Leo', score: 2150, opponent: 'Mother(Mom)', mode: '🔥 連棋', date: '2026-09-23' },
+      { name: 'Emma', score: 1880, opponent: 'Girl(Anna)', mode: '🔥 連棋', date: '2026-09-22' },
+      { name: 'Lucas', score: 1650, opponent: 'Girl(Anna)', mode: '🎯 象棋', date: '2026-09-21' },
+      { name: 'Mia', score: 1420, opponent: 'Boy(Kevin)', mode: '🔥 連棋', date: '2026-09-20' },
+      { name: 'Ethan', score: 1260, opponent: 'Boy(Kevin)', mode: '🎯 象棋', date: '2026-09-19' },
+      { name: 'Sophia', score: 1110, opponent: 'Boy(Kevin)', mode: '🔥 連棋', date: '2026-09-18' },
+      { name: 'Oliver', score: 990, opponent: 'Boy(Kevin)', mode: '🎯 象棋', date: '2026-09-17' }
+    ];
+  }
+
+  function saveStoredLeaderboard(lb) {
+    try {
+      localStorage.setItem(LEADERBOARD_STORAGE_KEY, JSON.stringify(lb));
+    } catch (e) {}
+  }
+
+  function recordMatchResult(isWin, isDraw) {
+    if (playType !== 'single') return; // 僅統計單人對戰電腦之戰績
+
+    const stats = getStoredStats();
+    stats.totalGames++;
+
+    if (!stats.opponents[opponentKey]) {
+      stats.opponents[opponentKey] = { games: 0, wins: 0, losses: 0 };
+    }
+    stats.opponents[opponentKey].games++;
+
+    if (isWin) {
+      stats.totalWins++;
+      stats.currentStreak++;
+      if (stats.currentStreak > stats.maxStreak) {
+        stats.maxStreak = stats.currentStreak;
+      }
+      stats.opponents[opponentKey].wins++;
+    } else if (!isDraw) {
+      stats.totalLosses++;
+      stats.currentStreak = 0;
+      stats.opponents[opponentKey].losses++;
+    }
+
+    saveStoredStats(stats);
+    renderStatsUI();
+  }
+
+  function calculateMatchScore(isWin, isDraw) {
+    if (isDraw) return 200;
+    if (!isWin) return 100;
+
+    const oppLevel = OPPONENT_PROFILES[opponentKey].level;
+    const mult = [1.0, 1.4, 2.0, 3.2][oppLevel - 1];
+
+    let remainingPieces = 0;
+    for (let r = 0; r < ROWS; r++) {
+      for (let c = 0; c < COLS; c++) {
+        const cell = board[r][c];
+        if (cell.revealed && cell.piece && cell.piece.color === playerColor) {
+          remainingPieces++;
+        }
+      }
+    }
+
+    const base = 800;
+    const comboBonus = currentMatchMaxCombo * 130;
+    const pieceBonus = remainingPieces * 45;
+    const efficiency = Math.max(0, (45 - currentMatchMoves) * 15);
+    const score = Math.round((base + comboBonus + pieceBonus + efficiency) * mult);
+    return score;
+  }
+
+  function renderStatsUI() {
+    const stats = getStoredStats();
+    const summaryRec = document.getElementById('stats-summary-record');
+    const summaryRate = document.getElementById('stats-summary-winrate');
+    const summaryStreak = document.getElementById('stats-summary-streak');
+
+    const winRate = stats.totalGames > 0 ? Math.round((stats.totalWins / stats.totalGames) * 100) : 0;
+    if (summaryRec) summaryRec.textContent = `${stats.totalGames} 戰 ${stats.totalWins} 勝`;
+    if (summaryRate) summaryRate.textContent = `${winRate}%`;
+    if (summaryStreak) summaryStreak.textContent = `${stats.maxStreak} 連勝`;
+
+    // 更新各對手卡片勝率徽章
+    const keys = ['eric', 'ana', 'michelle', 'davis'];
+    keys.forEach(k => {
+      const el = document.getElementById(`stat-opp-${k}`);
+      if (el && stats.opponents[k]) {
+        const op = stats.opponents[k];
+        const r = op.games > 0 ? Math.round((op.wins / op.games) * 100) : 0;
+        el.textContent = `${op.games} 戰 ${op.wins} 勝 (勝率 ${r}%)`;
+      }
+    });
+
+    // 更新彈窗內的總體戰況
+    const elTotGames = document.getElementById('stat-total-games');
+    const elTotWins = document.getElementById('stat-total-wins');
+    const elTotLosses = document.getElementById('stat-total-losses');
+    const elTotRate = document.getElementById('stat-total-winrate');
+    if (elTotGames) elTotGames.textContent = stats.totalGames;
+    if (elTotWins) elTotWins.textContent = stats.totalWins;
+    if (elTotLosses) elTotLosses.textContent = stats.totalLosses;
+    if (elTotRate) elTotRate.textContent = `${winRate}%`;
+
+    const oppList = document.getElementById('opponent-stats-list');
+    if (oppList) {
+      oppList.innerHTML = keys.map(k => {
+        const prof = OPPONENT_PROFILES[k];
+        const op = stats.opponents[k] || { games: 0, wins: 0, losses: 0 };
+        const r = op.games > 0 ? Math.round((op.wins / op.games) * 100) : 0;
+        return `
+          <div class="opp-stat-row">
+            <div class="opp-stat-header">
+              <span class="opp-stat-name">${prof.avatar} ${prof.name} (${prof.desc.split('・')[0]})</span>
+              <span class="opp-stat-score">${op.games} 戰 ${op.wins} 勝 ${op.losses} 敗 (勝率 <strong>${r}%</strong>)</span>
+            </div>
+            <div class="win-rate-bar-bg">
+              <div class="win-rate-bar-fill" style="width: ${r}%;"></div>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+  }
+
+  function renderLeaderboard() {
+    const lb = getStoredLeaderboard();
+    const tbody = document.getElementById('leaderboard-tbody');
+    if (!tbody) return;
+    tbody.innerHTML = lb.map((row, idx) => {
+      let rankIcon = `#${idx + 1}`;
+      let rankClass = '';
+      if (idx === 0) { rankIcon = '🥇 冠軍'; rankClass = 'rank-1'; }
+      else if (idx === 1) { rankIcon = '🥈 亞軍'; rankClass = 'rank-2'; }
+      else if (idx === 2) { rankIcon = '🥉 季軍'; rankClass = 'rank-3'; }
+
+      return `
+        <tr class="${rankClass}">
+          <td><strong>${rankIcon}</strong></td>
+          <td style="font-weight: bold; color: #fff;">${row.name}</td>
+          <td style="color: #ffd54f; font-weight: bold;">${row.score}</td>
+          <td>${row.opponent}</td>
+          <td>${row.mode}</td>
+        </tr>
+      `;
+    }).join('');
+  }
+
+  function openLeaderboard() {
+    renderLeaderboard();
+    const m = document.getElementById('modal-leaderboard');
+    if (m) m.classList.add('active');
+  }
+
+  function closeLeaderboard() {
+    const m = document.getElementById('modal-leaderboard');
+    if (m) m.classList.remove('active');
+  }
+
+  function openStatsModal() {
+    renderStatsUI();
+    const m = document.getElementById('modal-stats');
+    if (m) m.classList.add('active');
+  }
+
+  function closeStatsModal() {
+    const m = document.getElementById('modal-stats');
+    if (m) m.classList.remove('active');
+  }
+
+  function submitScoreRecord() {
+    const input = document.getElementById('input-player-name');
+    if (!input) return;
+    const name = input.value.trim() || '無名英雄';
+    const oppName = OPPONENT_PROFILES[opponentKey].name;
+    const modeName = (ruleMode === 'lianqi') ? '🔥 連棋' : '🎯 象棋';
+
+    const lb = getStoredLeaderboard();
+    const newEntry = {
+      name: name,
+      score: lastCalculatedScore,
+      opponent: oppName,
+      mode: modeName,
+      date: new Date().toISOString().split('T')[0]
+    };
+
+    lb.push(newEntry);
+    lb.sort((a, b) => b.score - a.score);
+    const top10 = lb.slice(0, 10);
+    saveStoredLeaderboard(top10);
+
+    const inputGroup = document.getElementById('gameover-name-input-group');
+    if (inputGroup) {
+      inputGroup.innerHTML = `<span style="color: #a5d6a7; font-weight: bold;">✅ 已成功登錄至排行榜！恭喜 ${name}！</span>`;
+    }
+    renderLeaderboard();
+  }
+
   function triggerGameOver(winnerSide, reasonDesc) {
     isGameOver = true;
     const modal = document.getElementById('modal-gameover');
@@ -1120,7 +1582,52 @@ const GameApp = (() => {
     const descEl = document.getElementById('gameover-desc');
     const statusBox = document.getElementById('voice-indicator');
 
-    if (winnerSide === 'draw') {
+    const isPlayerWin = (playType === 'single' && winnerSide === 'player') || (playType === 'dual' && winnerSide === 'p1');
+    const isDraw = winnerSide === 'draw';
+
+    // 紀錄戰績
+    recordMatchResult(isPlayerWin, isDraw);
+
+    // 計算本局得分
+    lastCalculatedScore = calculateMatchScore(isPlayerWin, isDraw);
+    const scoreValEl = document.getElementById('gameover-score-value');
+    if (scoreValEl) scoreValEl.textContent = `${lastCalculatedScore} 分`;
+
+    // 排行榜 Top 10 資格判定
+    const lb = getStoredLeaderboard();
+    const minScore = lb.length < 10 ? 0 : lb[lb.length - 1].score;
+    const qualifiesTop10 = (playType === 'single' && isPlayerWin && lastCalculatedScore >= minScore);
+
+    const lbSection = document.getElementById('gameover-leaderboard-section');
+    const rankTag = document.getElementById('gameover-rank-tag');
+    const nameInputGroup = document.getElementById('gameover-name-input-group');
+
+    if (lbSection) {
+      if (qualifiesTop10) {
+        lbSection.style.display = 'block';
+        if (rankTag) rankTag.style.display = 'inline-block';
+        if (nameInputGroup) {
+          nameInputGroup.innerHTML = `
+            <input type="text" id="input-player-name" placeholder="請輸入大名登上排行榜..." maxlength="12">
+            <button class="btn-primary btn-save-record" onclick="GameApp.submitScoreRecord()">儲存紀錄</button>
+          `;
+        }
+      } else {
+        if (rankTag) rankTag.style.display = 'none';
+        if (nameInputGroup) nameInputGroup.innerHTML = '';
+      }
+    }
+
+    // 戰況快報
+    const matchStatEl = document.getElementById('gameover-match-stat');
+    if (matchStatEl && playType === 'single') {
+      const stats = getStoredStats();
+      const op = stats.opponents[opponentKey] || { games: 0, wins: 0, losses: 0 };
+      const r = op.games > 0 ? Math.round((op.wins / op.games) * 100) : 0;
+      matchStatEl.textContent = `對【${OPPONENT_PROFILES[opponentKey].name}】戰績：${op.games} 戰 ${op.wins} 勝 ${op.losses} 敗（勝率 ${r}%）`;
+    }
+
+    if (isDraw) {
       playSynthSfx('move');
       if (iconEl) iconEl.textContent = '🤝';
       if (titleEl) titleEl.textContent = '雙方握手言和！';
@@ -1129,8 +1636,6 @@ const GameApp = (() => {
       if (modal) modal.classList.add('active');
       return;
     }
-
-    const isPlayerWin = (playType === 'single' && winnerSide === 'player') || (playType === 'dual' && winnerSide === 'p1');
 
     if (isPlayerWin) {
       playSynthSfx('win');
@@ -1189,11 +1694,11 @@ const GameApp = (() => {
     const modeTag = document.getElementById('game-active-mode-tag');
     if (modeTag) {
       if (ruleMode === 'lianqi') {
-        modeTag.className = 'center-mode-tag';
-        modeTag.textContent = '🔥 連棋 (連吃)';
+        modeTag.className = 'center-mode-title';
+        modeTag.textContent = '🔥 連棋';
       } else {
-        modeTag.className = 'center-mode-tag classic';
-        modeTag.textContent = '🎯 暗棋 (傳統)';
+        modeTag.className = 'center-mode-title classic';
+        modeTag.textContent = '🎯 象棋';
       }
     }
 
@@ -1309,8 +1814,10 @@ const GameApp = (() => {
     }
   }
 
+  // 初始化統計與音效監聽
   window.addEventListener('touchstart', initAudioContext, { once: true, passive: true });
   window.addEventListener('click', initAudioContext, { once: true, passive: true });
+  setTimeout(() => renderStatsUI(), 100);
 
   return {
     showHome,
@@ -1322,6 +1829,11 @@ const GameApp = (() => {
     openRules,
     closeRules,
     switchRulesTab,
+    openLeaderboard,
+    closeLeaderboard,
+    openStatsModal,
+    closeStatsModal,
+    submitScoreRecord,
     toggleSound,
     restartCurrentGame,
     finishCombo
