@@ -704,8 +704,8 @@ const GameApp = (() => {
       renderBoard();
       updateStatusTip(`走子：${attacker.name} 移動至新位置。`);
 
-      if (consecutiveNoCapture >= 30) {
-        triggerGameOver('draw', '雙方連續 30 回合未發生吃子，依規則判定和棋！');
+      if (consecutiveNoCapture >= 100) {
+        triggerGameOver('draw', '雙方連續 100 回合未發生吃子，依規則判定和棋！');
         return;
       }
 
