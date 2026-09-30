@@ -1126,18 +1126,69 @@ const GameApp = (() => {
     // === LEVEL 3 (Mother / 難) & LEVEL 4 (Father / 最難) 深度啟發評估 ===
     const evaluatedMoves = [];
 
-    // ─── Level 4 專用：模擬走法後評估局面得分 ───
-    function simulateMoveAndEval(fromR, fromC, toR, toC, simBoard) {
-      // 返回一個估算分數，代表走完這步後對 AI 的局面價值
-      let gain = 0;
-      const target = simBoard[toR][toC];
-      if (target && target.revealed && target.piece && target.piece.color !== aiColor) {
-        gain += getPieceRankValue(target.piece) * 2;
+    // ─── 棋盤快照與走步模擬（供 Level 4 1-ply Minimax 深度前瞻） ───
+    function copyBoardSnap() {
+      const snap = [];
+      for (let r = 0; r < ROWS; r++) {
+        snap[r] = [];
+        for (let c = 0; c < COLS; c++) {
+          const cell = board[r][c];
+          snap[r][c] = { revealed: cell.revealed, piece: cell.piece ? { ...cell.piece } : null };
+        }
       }
-      return gain;
+      return snap;
     }
 
-    // ─── Level 4 專用：檢查 AI 是否能在走完某步後，形成下一步的連吃或多重威脅 ───
+    function applyMoveOnSnap(snap, fromR, fromC, toR, toC) {
+      const piece = snap[fromR][fromC].piece;
+      snap[toR][toC].piece = piece;
+      snap[toR][toC].revealed = true;
+      snap[fromR][fromC].piece = null;
+    }
+
+    // 模擬：AI 走完後，玩家最佳反擊能吃到的最高價值（全盤搜尋，防止任何失誤或掛棋）
+    function bestOpponentResponseOnSnap(snap) {
+      const pColor = playerColor;
+      if (!pColor) return 0;
+      let best = 0;
+      const dirs = [[-1, 0], [1, 0], [0, -1], [0, 1]];
+      for (let r = 0; r < ROWS; r++) {
+        for (let c = 0; c < COLS; c++) {
+          const cell = snap[r][c];
+          if (!cell.revealed || !cell.piece || cell.piece.color !== pColor) continue;
+          const p = cell.piece;
+          for (const [dr, dc] of dirs) {
+            const nr = r + dr, nc = c + dc;
+            if (nr < 0 || nr >= ROWS || nc < 0 || nc >= COLS) continue;
+            const tgt = snap[nr][nc];
+            if (tgt.revealed && tgt.piece && tgt.piece.color !== pColor && canCapture(p, tgt.piece)) {
+              best = Math.max(best, getPieceRankValue(tgt.piece));
+            }
+          }
+          if (p.isCannon) {
+            for (const [dr, dc] of dirs) {
+              let step = 1, cnt = 0;
+              while (true) {
+                const nr = r + dr * step, nc = c + dc * step;
+                if (nr < 0 || nr >= ROWS || nc < 0 || nc >= COLS) break;
+                const t = snap[nr][nc];
+                if (t.piece) {
+                  cnt++;
+                  if (cnt === 2) {
+                    if (t.revealed && t.piece.color !== pColor) best = Math.max(best, getPieceRankValue(t.piece));
+                    break;
+                  }
+                }
+                step++;
+              }
+            }
+          }
+        }
+      }
+      return best;
+    }
+
+    // ─── 檢查 AI 是否能在走完某步後，形成下一步的連吃或多重威脅（叉殺） ───
     function countForkThreats(toR, toC, piece) {
       let threats = 0;
       const dirs = [[-1, 0], [1, 0], [0, -1], [0, 1]];
@@ -1178,34 +1229,81 @@ const GameApp = (() => {
       return threats;
     }
 
-    // ─── Level 4 專用：計算 AI 整體棋子協同保護分 ───
-    function calcBoardControl() {
-      let controlScore = 0;
-      for (let r = 0; r < ROWS; r++) {
-        for (let c = 0; c < COLS; c++) {
-          const cell = board[r][c];
-          if (cell.revealed && cell.piece && cell.piece.color === aiColor) {
-            // 被友軍保護 +
-            const dirs = [[-1, 0], [1, 0], [0, -1], [0, 1]];
-            dirs.forEach(([dr, dc]) => {
-              const nr = r + dr; const nc = c + dc;
-              if (nr >= 0 && nr < ROWS && nc >= 0 && nc < COLS) {
-                const adj = board[nr][nc];
-                if (adj.revealed && adj.piece && adj.piece.color === aiColor) {
-                  controlScore += 5;
+    // ─── 炮是否在該位置形成「跳吃線」（砲台已架好） ───
+    function calcCannonBatteryBonus(toR, toC, piece) {
+      if (!piece.isCannon) return 0;
+      let bonus = 0;
+      const dirs = [[-1, 0], [1, 0], [0, -1], [0, 1]];
+      for (const [dr, dc] of dirs) {
+        let step = 1, cnt = 0;
+        while (true) {
+          const nr = toR + dr * step, nc = toC + dc * step;
+          if (nr < 0 || nr >= ROWS || nc < 0 || nc >= COLS) break;
+          const t = board[nr][nc];
+          if (t.piece) {
+            cnt++;
+            if (cnt === 2) {
+              bonus += (t.revealed && t.piece.color !== aiColor) ? 75 : 40;
+              break;
+            }
+          }
+          step++;
+        }
+      }
+      return bonus;
+    }
+
+    // ─── Level 4 專用：架炮台獎勵（移動普通棋子作為 AI 炮的跳板） ───
+    function calcScreenSetupBonus(toR, toC) {
+      if (aiLevel < 4 || !playerColor) return 0;
+      let bonus = 0;
+      const dirs = [[-1, 0], [1, 0], [0, -1], [0, 1]];
+      for (const [dr, dc] of dirs) {
+        for (let step = 1; step < 8; step++) {
+          const cr = toR - dr * step, cc = toC - dc * step;
+          if (cr < 0 || cr >= ROWS || cc < 0 || cc >= COLS) break;
+          const cCell = board[cr][cc];
+          if (cCell.piece) {
+            if (cCell.revealed && cCell.piece.color === aiColor && cCell.piece.isCannon) {
+              // 找到後方的友方炮，再看前方是否有敵方目標
+              for (let fStep = 1; fStep < 8; fStep++) {
+                const tr = toR + dr * fStep, tc = toC + dc * fStep;
+                if (tr < 0 || tr >= ROWS || tc < 0 || tc >= COLS) break;
+                const tCell = board[tr][tc];
+                if (tCell.piece) {
+                  if (tCell.revealed && tCell.piece.color === playerColor) {
+                    bonus += 50; // 成功架設砲台跳板！
+                  }
+                  break;
                 }
               }
-            });
-            // 中心控制 +
-            const distToCenter = Math.abs(r - 1.5) + Math.abs(c - 3.5);
-            controlScore += (6 - distToCenter) * 3;
+            }
+            break;
           }
         }
       }
-      return controlScore;
+      return bonus;
     }
 
-    // ─── Level 4 專用：計算玩家可威脅到 AI 棋子的總危機分 ───
+    // ─── Level 4 專用：獵殺與圍剿玩家高價值棋子 (Alpha Hunter) ───
+    function calcHuntingBonus(toR, toC, piece) {
+      if (aiLevel < 4 || !playerColor) return 0;
+      let bonus = 0;
+      for (let r = 0; r < ROWS; r++) {
+        for (let c = 0; c < COLS; c++) {
+          const cell = board[r][c];
+          if (cell.revealed && cell.piece && cell.piece.color === playerColor && cell.piece.rank >= 4) {
+            if (canCapture(piece, cell.piece)) {
+              const dist = Math.abs(toR - r) + Math.abs(toC - c);
+              bonus += Math.max(0, 6 - dist) * 12; // 逼近玩家大棋，壓制其活動空間
+            }
+          }
+        }
+      }
+      return bonus;
+    }
+
+    // ─── 計算玩家可威脅到 AI 棋子的總危機分 ───
     function calcTotalVulnerability() {
       let danger = 0;
       for (let r = 0; r < ROWS; r++) {
@@ -1222,7 +1320,7 @@ const GameApp = (() => {
       return danger;
     }
 
-    // ─── 計算 AI 棋子總兵力值 ───
+    // ─── 計算 AI / 玩家 棋子總兵力值 ───
     function calcTotalAiPieceValue() {
       let total = 0;
       for (let r = 0; r < ROWS; r++) {
@@ -1236,6 +1334,23 @@ const GameApp = (() => {
       return total;
     }
 
+    function calcTotalPlayerPieceValue() {
+      let total = 0;
+      for (let r = 0; r < ROWS; r++) {
+        for (let c = 0; c < COLS; c++) {
+          const cell = board[r][c];
+          if (cell.revealed && cell.piece && cell.piece.color === playerColor) {
+            total += getPieceRankValue(cell.piece);
+          }
+        }
+      }
+      return total;
+    }
+
+    const aiTotalVal = calcTotalAiPieceValue();
+    const playerTotalVal = calcTotalPlayerPieceValue();
+    const hasAdvantage = (aiTotalVal - playerTotalVal) > 35;
+
     // (A) 評估吃子行動
     captures.forEach(item => {
       const targetPiece = board[item.action.r][item.action.c].piece;
@@ -1248,29 +1363,42 @@ const GameApp = (() => {
       if (postThreat.threatened) {
         const riskLoss = attackerVal;
         if (targetVal < riskLoss) {
-          // Level 4: 絕對不做虧本交易
-          score = aiLevel === 4 ? -600 : -120;
+          // 零虧本原則：Level 3 與 Level 4 嚴格禁止虧本交易
+          score = -600;
         } else if (targetVal === riskLoss) {
-          // 等價交換：Level 4 更傾向只換高價值棋（vehicle/general）
-          score += aiLevel === 4 ? (targetVal >= 45 ? 80 : -30) : 50;
+          // 等價交換：傾向換高階棋（車/將）；劣勢或殘局時依策略調整
+          if (aiLevel === 4 && hasAdvantage) {
+            score += 90; // Level 4 優勢殘局：換子簡化局面加速獲勝
+          } else {
+            score += (targetVal >= 45 ? 80 : -30);
+          }
         } else {
-          // 划算：獲利交換
-          score += (targetVal - riskLoss) * (aiLevel === 4 ? 3.5 : 2);
+          // 獲利交換
+          score += (targetVal - riskLoss) * (aiLevel === 4 ? 4 : 3.5);
         }
       } else {
-        score += aiLevel === 4 ? 220 : 160; // 安全吃大加分
+        score += (aiLevel === 4 ? 240 : 220); // 安全吃子大加分
       }
 
       // 當前位置已受威脅時，吃子逃脫獎勵
       const currThreat = isSquareThreatenedByEnemy(item.fromR, item.fromC, aiColor, item.piece.rank, item.piece.isCannon);
       if (currThreat.threatened) {
-        score += attackerVal * (aiLevel === 4 ? 3 : 2);
+        score += attackerVal * (aiLevel === 4 ? 3.5 : 3);
       }
 
-      // Level 4：吃完後的叉殺威脅加成
+      // 吃完後的叉殺威脅加成 (Level 3 & 4)
+      const forkCount = countForkThreats(item.action.r, item.action.c, item.piece);
+      score += forkCount * (aiLevel === 4 ? 50 : 45);
+
+      // Level 4 專屬加成：1-ply Minimax + 砲台跳吃線 + 獵殺高階棋
       if (aiLevel === 4) {
-        const forkCount = countForkThreats(item.action.r, item.action.c, item.piece);
-        score += forkCount * 45;
+        const snap = copyBoardSnap();
+        applyMoveOnSnap(snap, item.fromR, item.fromC, item.action.r, item.action.c);
+        const oppBest = bestOpponentResponseOnSnap(snap);
+        score -= oppBest * 2.8;
+
+        score += calcCannonBatteryBonus(item.action.r, item.action.c, item.piece);
+        score += calcHuntingBonus(item.action.r, item.action.c, item.piece);
       }
 
       evaluatedMoves.push({ type: 'move', fromR: item.fromR, fromC: item.fromC, action: item.action, score });
@@ -1286,58 +1414,66 @@ const GameApp = (() => {
 
       // 1. 成功逃離危險
       if (currThreat.threatened && !postThreat.threatened) {
-        score = 240 + attackerVal * (aiLevel === 4 ? 3.5 : 2.5);
+        score = 250 + attackerVal * (aiLevel === 4 ? 4 : 3.5);
       } else if (currThreat.threatened && postThreat.threatened) {
         score = 10; // 逃不掉，低分
       } else if (!currThreat.threatened && postThreat.threatened) {
-        // Level 4: 絕對不主動走入危險區
-        score = aiLevel === 4 ? -1200 : -450;
+        // 零虧本原則：Level 3 與 Level 4 絕對不主動走入危險區
+        score = -1200;
       }
 
-      // 2. 走到新位置能威脅玩家棋子（進攻壓制）
-      if (!postThreat.threatened && (aiLevel >= 3)) {
+      // 2. 走到新位置能威脅玩家棋子（進攻壓制 / 叉殺佈局）
+      if (!postThreat.threatened) {
         const forkCount = countForkThreats(item.action.r, item.action.c, item.piece);
-        if (aiLevel === 4) {
-          score += forkCount * 55; // 更重視叉殺佈局
-        } else {
-          score += forkCount * 35;
-        }
+        score += forkCount * (aiLevel === 4 ? 60 : 45);
       }
 
       // 3. 佔據中心區域控制權
       const distToCenter = Math.abs(item.action.r - 1.5) + Math.abs(item.action.c - 3.5);
-      score += (5 - distToCenter) * (aiLevel === 4 ? 4 : 2);
+      score += (5 - distToCenter) * (aiLevel === 4 ? 4 : 3);
 
-      // 4. Level 4：走步後讓友軍形成保護鏈
-      if (aiLevel === 4) {
-        const dirs = [[-1, 0], [1, 0], [0, -1], [0, 1]];
-        let protectBonus = 0;
-        dirs.forEach(([dr, dc]) => {
-          const nr = item.action.r + dr; const nc = item.action.c + dc;
-          if (nr >= 0 && nr < ROWS && nc >= 0 && nc < COLS) {
-            const adj = board[nr][nc];
-            if (adj.revealed && adj.piece && adj.piece.color === aiColor) {
-              protectBonus += 18;
-            }
+      // 4. 走步後讓友軍形成保護鏈（聚兵協同防守，Level 3 & 4 均具備）
+      const dirs = [[-1, 0], [1, 0], [0, -1], [0, 1]];
+      let protectBonus = 0;
+      dirs.forEach(([dr, dc]) => {
+        const nr = item.action.r + dr; const nc = item.action.c + dc;
+        if (nr >= 0 && nr < ROWS && nc >= 0 && nc < COLS) {
+          const adj = board[nr][nc];
+          if (adj.revealed && adj.piece && adj.piece.color === aiColor) {
+            protectBonus += (aiLevel === 4 ? 22 : 18);
           }
-        });
-        score += protectBonus;
+        }
+      });
+      score += protectBonus;
 
-        // Level 4：若當前走法可以「間接護衛」另一個被威脅的友軍棋子，加分
-        for (let r = 0; r < ROWS; r++) {
-          for (let c = 0; c < COLS; c++) {
-            const cell = board[r][c];
-            if (cell.revealed && cell.piece && cell.piece.color === aiColor && !(r === item.fromR && c === item.fromC)) {
-              const cellThreat = isSquareThreatenedByEnemy(r, c, aiColor, cell.piece.rank, cell.piece.isCannon);
-              if (cellThreat.threatened) {
-                const dx = Math.abs(item.action.c - c);
-                const dy = Math.abs(item.action.r - r);
-                if ((dx === 0 || dy === 0) && dx + dy <= 2) {
-                  score += 25; // 走向被威脅友軍旁邊提供保護
-                }
+      // 5. 護衛受威脅友軍（走至受威脅友軍旁支援）
+      for (let r = 0; r < ROWS; r++) {
+        for (let c = 0; c < COLS; c++) {
+          const cell = board[r][c];
+          if (cell.revealed && cell.piece && cell.piece.color === aiColor && !(r === item.fromR && c === item.fromC)) {
+            const cellThreat = isSquareThreatenedByEnemy(r, c, aiColor, cell.piece.rank, cell.piece.isCannon);
+            if (cellThreat.threatened) {
+              const dx = Math.abs(item.action.c - c);
+              const dy = Math.abs(item.action.r - r);
+              if ((dx === 0 || dy === 0) && dx + dy <= 2) {
+                score += (aiLevel === 4 ? 35 : 25);
               }
             }
           }
+        }
+      }
+
+      // 6. Level 4 專屬加成：Minimax 全盤檢查 + 獵殺追擊 + 架炮台跳板
+      if (aiLevel === 4) {
+        const snap = copyBoardSnap();
+        applyMoveOnSnap(snap, item.fromR, item.fromC, item.action.r, item.action.c);
+        const oppBest = bestOpponentResponseOnSnap(snap);
+        score -= oppBest * 2.8;
+
+        score += calcHuntingBonus(item.action.r, item.action.c, item.piece);
+        score += calcScreenSetupBonus(item.action.r, item.action.c);
+        if (item.piece.isCannon) {
+          score += calcCannonBatteryBonus(item.action.r, item.action.c, item.piece);
         }
       }
 
@@ -1349,14 +1485,19 @@ const GameApp = (() => {
       let score = 95;
       const postThreat = isSquareThreatenedByEnemy(item.action.r, item.action.c, aiColor, item.piece.rank, true);
       if (postThreat.threatened) {
-        score = aiLevel === 4 ? -400 : 20;
+        score = -400; // 炮跳暗棋若有去無回，嚴厲扣分
       } else {
-        if (aiLevel === 4) {
-          // 炮翻山後若形成新的跳吃威脅，大加分
-          const forkCount = countForkThreats(item.action.r, item.action.c, item.piece);
-          score += forkCount * 60 + 80;
-        }
+        const forkCount = countForkThreats(item.action.r, item.action.c, item.piece);
+        score += forkCount * (aiLevel === 4 ? 65 : 50) + (aiLevel === 4 ? 90 : 60);
       }
+
+      if (aiLevel === 4) {
+        const snap = copyBoardSnap();
+        applyMoveOnSnap(snap, item.fromR, item.fromC, item.action.r, item.action.c);
+        const oppBest = bestOpponentResponseOnSnap(snap);
+        score -= oppBest * 2.5;
+      }
+
       evaluatedMoves.push({ type: 'move', fromR: item.fromR, fromC: item.fromC, action: item.action, score });
     });
 
@@ -1373,16 +1514,19 @@ const GameApp = (() => {
 
       const postThreat = isSquareThreatenedByEnemy(item.action.r, item.action.c, aiColor, p.rank, p.isCannon);
       if (postThreat.threatened) {
-        // Level 4：幾乎不做高危盲吃（除非低價值棋子）
-        if (aiLevel === 4) {
-          score = p.rank <= 2 ? -50 : -350;
-        } else {
-          score -= getPieceRankValue(p) * 1.5;
-        }
-      } else if (aiLevel === 4) {
-        // Level 4：安全盲吃後的叉殺加成
+        // 高危盲吃懲罰
+        score = p.rank <= 2 ? -50 : -350;
+      } else {
+        // 安全盲吃後的叉殺加成
         const forkCount = countForkThreats(item.action.r, item.action.c, p);
-        score += forkCount * 40;
+        score += forkCount * (aiLevel === 4 ? 45 : 35);
+      }
+
+      if (aiLevel === 4) {
+        const snap = copyBoardSnap();
+        applyMoveOnSnap(snap, item.fromR, item.fromC, item.action.r, item.action.c);
+        const oppBest = bestOpponentResponseOnSnap(snap);
+        score -= oppBest * 2.5;
       }
 
       evaluatedMoves.push({ type: 'move', fromR: item.fromR, fromC: item.fromC, action: item.action, score });
@@ -1406,33 +1550,28 @@ const GameApp = (() => {
         }
       });
 
-      if (enemyThreatCount > 0) score -= enemyThreatCount * (aiLevel === 4 ? 30 : 18);
-      if (friendlyProtectCount > 0) score += friendlyProtectCount * (aiLevel === 4 ? 18 : 12);
+      if (enemyThreatCount > 0) score -= enemyThreatCount * (aiLevel === 4 ? 35 : 28);
+      if (friendlyProtectCount > 0) score += friendlyProtectCount * (aiLevel === 4 ? 20 : 16);
 
-      // Level 4：若局面兵力優勢，減少翻棋，優先打擊
-      if (aiLevel === 4) {
-        const aiPieceVal = calcTotalAiPieceValue();
-        if (aiPieceVal > 200 && captures.length > 0) {
-          score -= 30; // 有得吃時，翻棋優先級降低
-        }
+      // 兵力優勢時降低翻棋率（優先吃子打擊與簡化局面）
+      if (aiTotalVal > 180 && captures.length > 0) {
+        score -= (aiLevel === 4 ? 45 : 30);
       }
 
       evaluatedMoves.push({ type: 'flip', r: cell.r, c: cell.c, score });
     });
 
-    // Level 4 全局加成：若全局 AI 受到大量威脅，提高防守走法優先級
-    if (aiLevel === 4) {
-      const totalVuln = calcTotalVulnerability();
-      if (totalVuln > 80) {
-        evaluatedMoves.forEach(m => {
-          if (m.type === 'move' && m.action && m.action.type === 'move') {
-            const postThreat = isSquareThreatenedByEnemy(m.action.r, m.action.c, aiColor, board[m.fromR][m.fromC]?.piece?.rank || 1, board[m.fromR][m.fromC]?.piece?.isCannon || false);
-            if (!postThreat.threatened) {
-              m.score += 30; // 全局危機時，安全落點加分
-            }
+    // 全局危機緊急防守（若有多顆 AI 棋子受威脅，提高安全走步優先級）
+    const totalVuln = calcTotalVulnerability();
+    if (totalVuln > 80) {
+      evaluatedMoves.forEach(m => {
+        if (m.type === 'move' && m.action && m.action.type === 'move') {
+          const postThreat = isSquareThreatenedByEnemy(m.action.r, m.action.c, aiColor, board[m.fromR][m.fromC]?.piece?.rank || 1, board[m.fromR][m.fromC]?.piece?.isCannon || false);
+          if (!postThreat.threatened) {
+            m.score += (aiLevel === 4 ? 40 : 30);
           }
-        });
-      }
+        }
+      });
     }
 
     if (evaluatedMoves.length === 0) {
@@ -1444,11 +1583,17 @@ const GameApp = (() => {
 
     let bestPick;
     if (aiLevel === 4) {
-      // Level 4：在最優解中加入微量隨機（前 2 名），讓棋路不完全可預期
-      const topCandidates = evaluatedMoves.filter(m => m.score >= evaluatedMoves[0].score - 15);
+      // Level 4 Father：極度嚴謹候選窗口（±8分候選），嚴格防失誤，保持頂尖大師水準
+      const topCandidates = evaluatedMoves.filter(m => m.score >= evaluatedMoves[0].score - 8);
       bestPick = topCandidates[Math.floor(Math.random() * Math.min(topCandidates.length, 2))];
-    } else if (aiLevel === 3 && evaluatedMoves.length > 1 && Math.random() < 0.12) {
-      bestPick = evaluatedMoves[1];
+    } else if (aiLevel === 3) {
+      // Level 3 Mother：±15分微量隨機（8% 選次佳），棋路靈活自然且極難對付
+      const topCandidates = evaluatedMoves.filter(m => m.score >= evaluatedMoves[0].score - 15);
+      if (topCandidates.length > 1 && Math.random() < 0.08) {
+        bestPick = topCandidates[1];
+      } else {
+        bestPick = topCandidates[0];
+      }
     } else {
       bestPick = evaluatedMoves[0];
     }
@@ -1472,11 +1617,12 @@ const GameApp = (() => {
       // 優先吃已知高價值明棋
       const revealedCaptures = capturable.filter(a => a.type === 'capture');
       if (revealedCaptures.length > 0) {
-        // Level 4：選吃後最能形成下一個叉殺威脅的目標
-        if (aiLevel === 4) {
+        if (aiLevel >= 3) {
+          // Level 3 & Level 4：選吃後最能形成下一個叉殺威脅的目標
           revealedCaptures.sort((a, b) => {
-            const valA = getPieceRankValue(board[a.r][a.c].piece) + countForkThreats(a.r, a.c, aiPiece) * 30;
-            const valB = getPieceRankValue(board[b.r][b.c].piece) + countForkThreats(b.r, b.c, aiPiece) * 30;
+            const forkWeight = (aiLevel === 4 ? 45 : 30);
+            const valA = getPieceRankValue(board[a.r][a.c].piece) * (aiLevel === 4 ? 1.5 : 1) + countForkThreats(a.r, a.c, aiPiece) * forkWeight;
+            const valB = getPieceRankValue(board[b.r][b.c].piece) * (aiLevel === 4 ? 1.5 : 1) + countForkThreats(b.r, b.c, aiPiece) * forkWeight;
             return valB - valA;
           });
         } else {
@@ -1494,11 +1640,11 @@ const GameApp = (() => {
       const blindTargets = capturable.filter(a => a.type === 'blind_capture' || a.type === 'cannon_unrevealed');
       if (blindTargets.length > 0) {
         if (aiLevel === 4) {
-          // Level 4：連吃時絕對繼續衝暗棋（最大化連殺壓制）
+          // Level 4：連吃時絕對 100% 繼續衝暗棋（極限壓制連殺）
           const pick = blindTargets[Math.floor(Math.random() * blindTargets.length)];
           executeCaptureOrMove(comboPos.r, comboPos.c, pick);
           return;
-        } else if (aiPiece.rank >= 4 || (aiLevel >= 3 && aiPiece.rank >= 3) || (aiLevel <= 2 && Math.random() < 0.6)) {
+        } else if (aiPiece.rank >= 3 || (aiLevel >= 3 && aiPiece.rank >= 2) || (aiLevel <= 2 && Math.random() < 0.6)) {
           const pick = blindTargets[Math.floor(Math.random() * blindTargets.length)];
           executeCaptureOrMove(comboPos.r, comboPos.c, pick);
           return;
