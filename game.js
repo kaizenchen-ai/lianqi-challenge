@@ -1693,7 +1693,7 @@ const GameApp = (() => {
 
   // --- 戰績統計與排行榜資料持久化系統 ---
   const STATS_STORAGE_KEY = 'lianqi_chess_stats_v1';
-  const LEADERBOARD_STORAGE_KEY = 'lianqi_leaderboard_v1';
+  const LEADERBOARD_STORAGE_KEY = 'lianqi_leaderboard_v2';
 
   function getStoredStats() {
     try {
@@ -1727,25 +1727,42 @@ const GameApp = (() => {
       if (raw) {
         const parsed = JSON.parse(raw);
         if (Array.isArray(parsed) && parsed.length >= 20) return parsed;
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          // 若先前只有 10 筆，自動補齊至 20 筆預設資料
-          const defaults = getDefault20Leaderboard();
-          const merged = [...parsed];
-          defaults.forEach(d => {
-            if (!merged.find(m => m.name === d.name && m.score === d.score)) {
-              merged.push(d);
+      }
+
+      // 自動從 v1 遷移：若舊資料存在但尚未包含 Lele 第一名，自動將 Lele 插入第一名，其他人向下移一名
+      const oldRaw = localStorage.getItem('lianqi_leaderboard_v1');
+      if (oldRaw) {
+        try {
+          const oldParsed = JSON.parse(oldRaw);
+          if (Array.isArray(oldParsed) && oldParsed.length > 0) {
+            let list = [...oldParsed];
+            const hasLele = list.some(m => m.name === 'Lele');
+            if (!hasLele) {
+              list.unshift({ name: 'Lele', score: 4280, opponent: 'Father(Dad)', mode: '🔥 連棋', date: '2026-10-05' });
             }
-          });
-          merged.sort((a, b) => b.score - a.score);
-          return merged.slice(0, 20);
-        }
+            // 補齊預設 20 筆
+            const defaults = getDefault20Leaderboard();
+            defaults.forEach(d => {
+              if (!list.find(m => m.name === d.name)) {
+                list.push(d);
+              }
+            });
+            list.sort((a, b) => b.score - a.score);
+            const top20 = list.slice(0, 20);
+            saveStoredLeaderboard(top20);
+            return top20;
+          }
+        } catch (e) {}
       }
     } catch (e) {}
-    return getDefault20Leaderboard();
+    const defaults = getDefault20Leaderboard();
+    saveStoredLeaderboard(defaults);
+    return defaults;
   }
 
   function getDefault20Leaderboard() {
     return [
+      { name: 'Lele', score: 4280, opponent: 'Father(Dad)', mode: '🔥 連棋', date: '2026-10-05' },
       { name: 'Teacher Kevin', score: 3880, opponent: 'Father(Dad)', mode: '🔥 連棋', date: '2026-09-27' },
       { name: 'Alex', score: 3450, opponent: 'Father(Dad)', mode: '🔥 連棋', date: '2026-09-26' },
       { name: 'Eric', score: 3120, opponent: 'Father(Dad)', mode: '🎯 象棋', date: '2026-09-25' },
@@ -1764,8 +1781,7 @@ const GameApp = (() => {
       { name: 'Mason', score: 1280, opponent: 'Boy(Kevin)', mode: '🔥 連棋', date: '2026-09-19' },
       { name: 'Charlotte', score: 1190, opponent: 'Boy(Kevin)', mode: '🎯 象棋', date: '2026-09-18' },
       { name: 'James', score: 1110, opponent: 'Boy(Kevin)', mode: '🔥 連棋', date: '2026-09-18' },
-      { name: 'Harper', score: 1040, opponent: 'Boy(Kevin)', mode: '🎯 象棋', date: '2026-09-17' },
-      { name: 'Benjamin', score: 960, opponent: 'Boy(Kevin)', mode: '🔥 連棋', date: '2026-09-17' }
+      { name: 'Harper', score: 1040, opponent: 'Boy(Kevin)', mode: '🎯 象棋', date: '2026-09-17' }
     ];
   }
 
