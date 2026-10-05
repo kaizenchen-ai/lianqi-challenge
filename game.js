@@ -1725,30 +1725,42 @@ const GameApp = (() => {
     try {
       const raw = localStorage.getItem(LEADERBOARD_STORAGE_KEY);
       if (raw) {
-        const parsed = JSON.parse(raw);
-        if (Array.isArray(parsed) && parsed.length >= 20) return parsed;
+        let parsed = JSON.parse(raw);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          // 確保 Lele 必定存在且排在第 1 名（若先前快取沒有 Lele 為第一名，自動強制置入第一名並下移其餘名次）
+          if (parsed[0].name !== 'Lele') {
+            parsed = parsed.filter(m => m.name !== 'Lele');
+            parsed.unshift({ name: 'Lele', score: 4280, opponent: 'Father(Dad)', mode: '🔥 連棋', date: '2026-10-05' });
+            const defaults = getDefault20Leaderboard();
+            defaults.forEach(d => {
+              if (!parsed.find(m => m.name === d.name)) {
+                parsed.push(d);
+              }
+            });
+            const top20 = parsed.slice(0, 20);
+            saveStoredLeaderboard(top20);
+            return top20;
+          }
+          return parsed.slice(0, 20);
+        }
       }
 
       // 自動從 v1 遷移：若舊資料存在但尚未包含 Lele 第一名，自動將 Lele 插入第一名，其他人向下移一名
       const oldRaw = localStorage.getItem('lianqi_leaderboard_v1');
       if (oldRaw) {
         try {
-          const oldParsed = JSON.parse(oldRaw);
+          let oldParsed = JSON.parse(oldRaw);
           if (Array.isArray(oldParsed) && oldParsed.length > 0) {
-            let list = [...oldParsed];
-            const hasLele = list.some(m => m.name === 'Lele');
-            if (!hasLele) {
-              list.unshift({ name: 'Lele', score: 4280, opponent: 'Father(Dad)', mode: '🔥 連棋', date: '2026-10-05' });
-            }
+            oldParsed = oldParsed.filter(m => m.name !== 'Lele');
+            oldParsed.unshift({ name: 'Lele', score: 4280, opponent: 'Father(Dad)', mode: '🔥 連棋', date: '2026-10-05' });
             // 補齊預設 20 筆
             const defaults = getDefault20Leaderboard();
             defaults.forEach(d => {
-              if (!list.find(m => m.name === d.name)) {
-                list.push(d);
+              if (!oldParsed.find(m => m.name === d.name)) {
+                oldParsed.push(d);
               }
             });
-            list.sort((a, b) => b.score - a.score);
-            const top20 = list.slice(0, 20);
+            const top20 = oldParsed.slice(0, 20);
             saveStoredLeaderboard(top20);
             return top20;
           }
