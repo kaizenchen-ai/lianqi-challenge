@@ -1983,10 +1983,12 @@ const GameApp = (() => {
   function submitScoreRecord() {
     const input = document.getElementById('input-player-name');
     if (!input) return;
-    const defaultName = localStorage.getItem(LAST_PLAYER_NAME_KEY) || 'Lele';
-    const name = input.value.trim() || defaultName;
+    const savedName = localStorage.getItem(LAST_PLAYER_NAME_KEY) || '';
+    const name = input.value.trim() || savedName || '無名英雄';
     try {
-      localStorage.setItem(LAST_PLAYER_NAME_KEY, name);
+      if (input.value.trim()) {
+        localStorage.setItem(LAST_PLAYER_NAME_KEY, input.value.trim());
+      }
     } catch (e) {}
 
     const oppName = OPPONENT_PROFILES[opponentKey].name;
@@ -2046,9 +2048,10 @@ const GameApp = (() => {
         lbSection.style.display = 'block';
         if (rankTag) rankTag.style.display = 'inline-block';
         if (nameInputGroup) {
-          const defaultName = localStorage.getItem(LAST_PLAYER_NAME_KEY) || 'Lele';
+          const lastName = localStorage.getItem(LAST_PLAYER_NAME_KEY) || '';
+          const valAttr = lastName ? `value="${lastName.replace(/"/g, '&quot;')}"` : '';
           nameInputGroup.innerHTML = `
-            <input type="text" id="input-player-name" value="${defaultName}" placeholder="請輸入大名登上排行榜..." maxlength="12">
+            <input type="text" id="input-player-name" ${valAttr} placeholder="請輸入大名登上排行榜..." maxlength="12">
             <button class="btn-primary btn-save-record" onclick="GameApp.submitScoreRecord()">儲存紀錄</button>
           `;
         }
