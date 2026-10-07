@@ -1721,17 +1721,43 @@ const GameApp = (() => {
     } catch (e) {}
   }
 
+  const LAST_PLAYER_NAME_KEY = 'lianqi_last_player_name';
+
   function getStoredLeaderboard() {
     try {
       const raw = localStorage.getItem(LEADERBOARD_STORAGE_KEY);
       if (raw) {
         let parsed = JSON.parse(raw);
         if (Array.isArray(parsed) && parsed.length > 0) {
-          // 確保包含 Lele（若尚未收錄則加入，並依照實際分數自然排序）
-          const hasLele = parsed.some(m => m.name === 'Lele');
-          if (!hasLele) {
-            parsed.push({ name: 'Lele', score: 4280, opponent: 'Father(Dad)', mode: '🔥 連棋', date: '2026-10-05' });
-            parsed.sort((a, b) => b.score - a.score);
+          let modified = false;
+
+          // 1. 將先前小孩打出 5000+ 高分但未填名字的「無名英雄」，正式更名為「Lele」
+          parsed.forEach(m => {
+            if (m.name === '無名英雄' && m.score >= 4500) {
+              m.name = 'Lele';
+              modified = true;
+            }
+          });
+
+          // 2. 若已有 Lele 的 5000+ 分真實戰績，且名單中存在舊的 4280 分預設佔位紀錄，則清理掉佔位紀錄
+          const hasRealHighLele = parsed.some(m => m.name === 'Lele' && m.score >= 4500);
+          if (hasRealHighLele) {
+            const beforeLen = parsed.length;
+            parsed = parsed.filter(m => !(m.name === 'Lele' && m.score === 4280));
+            if (parsed.length !== beforeLen) modified = true;
+          }
+
+          // 3. 確保名單中至少有 Lele 的紀錄
+          const hasAnyLele = parsed.some(m => m.name === 'Lele');
+          if (!hasAnyLele) {
+            parsed.push({ name: 'Lele', score: 5180, opponent: 'Father(Dad)', mode: '🔥 連棋', date: '2026-10-06' });
+            modified = true;
+          }
+
+          // 4. 依照分數高低自然排序（完全動態排列）
+          parsed.sort((a, b) => b.score - a.score);
+
+          if (modified) {
             saveStoredLeaderboard(parsed.slice(0, 20));
           }
           return parsed.slice(0, 20);
@@ -1744,9 +1770,14 @@ const GameApp = (() => {
         try {
           let oldParsed = JSON.parse(oldRaw);
           if (Array.isArray(oldParsed) && oldParsed.length > 0) {
+            oldParsed.forEach(m => {
+              if (m.name === '無名英雄' && m.score >= 4500) {
+                m.name = 'Lele';
+              }
+            });
             const hasLele = oldParsed.some(m => m.name === 'Lele');
             if (!hasLele) {
-              oldParsed.push({ name: 'Lele', score: 4280, opponent: 'Father(Dad)', mode: '🔥 連棋', date: '2026-10-05' });
+              oldParsed.push({ name: 'Lele', score: 5180, opponent: 'Father(Dad)', mode: '🔥 連棋', date: '2026-10-06' });
             }
             const defaults = getDefault20Leaderboard();
             defaults.forEach(d => {
@@ -1769,7 +1800,7 @@ const GameApp = (() => {
 
   function getDefault20Leaderboard() {
     return [
-      { name: 'Lele', score: 4280, opponent: 'Father(Dad)', mode: '🔥 連棋', date: '2026-10-05' },
+      { name: 'Lele', score: 5180, opponent: 'Father(Dad)', mode: '🔥 連棋', date: '2026-10-06' },
       { name: 'Teacher Kevin', score: 3880, opponent: 'Father(Dad)', mode: '🔥 連棋', date: '2026-09-27' },
       { name: 'Alex', score: 3450, opponent: 'Father(Dad)', mode: '🔥 連棋', date: '2026-09-26' },
       { name: 'Eric', score: 3120, opponent: 'Father(Dad)', mode: '🎯 象棋', date: '2026-09-25' },
@@ -1952,7 +1983,12 @@ const GameApp = (() => {
   function submitScoreRecord() {
     const input = document.getElementById('input-player-name');
     if (!input) return;
-    const name = input.value.trim() || '無名英雄';
+    const defaultName = localStorage.getItem(LAST_PLAYER_NAME_KEY) || 'Lele';
+    const name = input.value.trim() || defaultName;
+    try {
+      localStorage.setItem(LAST_PLAYER_NAME_KEY, name);
+    } catch (e) {}
+
     const oppName = OPPONENT_PROFILES[opponentKey].name;
     const modeName = (ruleMode === 'lianqi') ? '🔥 連棋' : '🎯 象棋';
 
@@ -2010,8 +2046,9 @@ const GameApp = (() => {
         lbSection.style.display = 'block';
         if (rankTag) rankTag.style.display = 'inline-block';
         if (nameInputGroup) {
+          const defaultName = localStorage.getItem(LAST_PLAYER_NAME_KEY) || 'Lele';
           nameInputGroup.innerHTML = `
-            <input type="text" id="input-player-name" placeholder="請輸入大名登上排行榜..." maxlength="12">
+            <input type="text" id="input-player-name" value="${defaultName}" placeholder="請輸入大名登上排行榜..." maxlength="12">
             <button class="btn-primary btn-save-record" onclick="GameApp.submitScoreRecord()">儲存紀錄</button>
           `;
         }
