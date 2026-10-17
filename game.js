@@ -1695,6 +1695,95 @@ const GameApp = (() => {
   const STATS_STORAGE_KEY = 'lianqi_chess_stats_v1';
   const LEADERBOARD_STORAGE_KEY = 'lianqi_leaderboard_v2';
 
+  // --- 雲端資料庫全裝置同步配置 (Firebase Firestore REST) ---
+  const FIRESTORE_CONFIG = {
+    projectId: 'kaimac-chess-e2c2d',
+    apiKey: 'AIzaSyBdEsNIkGycFR2RWkjVjtMXmjr-mpntb7U',
+    collection: 'leaderboard'
+  };
+
+  let cachedCloudLeaderboard = null;
+  let isFetchingCloud = false;
+
+  async function fetchCloudLeaderboard() {
+    if (isFetchingCloud) return cachedCloudLeaderboard;
+    isFetchingCloud = true;
+    try {
+      const url = `https://firestore.googleapis.com/v1/projects/${FIRESTORE_CONFIG.projectId}/databases/(default)/documents/${FIRESTORE_CONFIG.collection}?key=${FIRESTORE_CONFIG.apiKey}&pageSize=50`;
+      const resp = await fetch(url);
+      if (resp.ok) {
+        const data = await resp.json();
+        const docs = data.documents || [];
+        const entries = docs.map(doc => {
+          const f = doc.fields || {};
+          return {
+            name: f.name ? f.name.stringValue : '無名英雄',
+            score: f.score ? parseInt(f.score.integerValue || f.score.doubleValue || '0', 10) : 0,
+            opponent: f.opponent ? f.opponent.stringValue : '電腦',
+            mode: f.mode ? f.mode.stringValue : '🔥 連棋',
+            date: f.date ? f.date.stringValue : (f.createdAt ? f.createdAt.timestampValue.split('T')[0] : '')
+          };
+        });
+        entries.sort((a, b) => b.score - a.score);
+        if (entries.length > 0) {
+          cachedCloudLeaderboard = entries.slice(0, 20);
+          saveStoredLeaderboard(cachedCloudLeaderboard);
+          updateSyncIndicator(true);
+          return cachedCloudLeaderboard;
+        }
+      }
+    } catch (err) {
+      console.warn('Fetch cloud leaderboard offline/error, falling back to local cache:', err);
+    } finally {
+      isFetchingCloud = false;
+    }
+    updateSyncIndicator(false);
+    return cachedCloudLeaderboard || getStoredLeaderboard();
+  }
+
+  async function pushCloudScoreRecord(entry) {
+    try {
+      const url = `https://firestore.googleapis.com/v1/projects/${FIRESTORE_CONFIG.projectId}/databases/(default)/documents/${FIRESTORE_CONFIG.collection}?key=${FIRESTORE_CONFIG.apiKey}`;
+      const body = {
+        fields: {
+          name: { stringValue: String(entry.name).slice(0, 20) },
+          score: { integerValue: String(entry.score) },
+          opponent: { stringValue: String(entry.opponent).slice(0, 30) },
+          mode: { stringValue: String(entry.mode).slice(0, 30) },
+          date: { stringValue: String(entry.date || new Date().toISOString().split('T')[0]).slice(0, 30) },
+          createdAt: { timestampValue: new Date().toISOString() }
+        }
+      };
+      const resp = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+      });
+      if (resp.ok) {
+        updateSyncIndicator(true);
+        // Refresh cloud leaderboard after pushing
+        await fetchCloudLeaderboard();
+        return true;
+      }
+    } catch (err) {
+      console.warn('Push score to cloud failed:', err);
+    }
+    return false;
+  }
+
+  function updateSyncIndicator(isOnline) {
+    const el = document.getElementById('leaderboard-sync-status');
+    if (el) {
+      if (isOnline) {
+        el.innerHTML = '☁️ 全雲端即時同步中';
+        el.style.color = '#81c784';
+      } else {
+        el.innerHTML = '💾 本機快取模式';
+        el.style.color = '#ffd54f';
+      }
+    }
+  }
+
   function getStoredStats() {
     try {
       const raw = localStorage.getItem(STATS_STORAGE_KEY);
@@ -1936,7 +2025,7 @@ const GameApp = (() => {
   }
 
   function renderLeaderboard() {
-    const lb = getStoredLeaderboard();
+    const lb = cachedCloudLeaderboard || getStoredLeaderboard();
     const tbody = document.getElementById('leaderboard-tbody');
     if (!tbody) return;
     tbody.innerHTML = lb.map((row, idx) => {
@@ -1962,6 +2051,10 @@ const GameApp = (() => {
     renderLeaderboard();
     const m = document.getElementById('modal-leaderboard');
     if (m) m.classList.add('active');
+    // 開啟時即刻在背景非同步更新雲端排行榜
+    fetchCloudLeaderboard().then(() => {
+      renderLeaderboard();
+    });
   }
 
   function closeLeaderboard() {
@@ -1994,7 +2087,6 @@ const GameApp = (() => {
     const oppName = OPPONENT_PROFILES[opponentKey].name;
     const modeName = (ruleMode === 'lianqi') ? '🔥 連棋' : '🎯 象棋';
 
-    const lb = getStoredLeaderboard();
     const newEntry = {
       name: name,
       score: lastCalculatedScore,
@@ -2003,9 +2095,12 @@ const GameApp = (() => {
       date: new Date().toISOString().split('T')[0]
     };
 
+    // 本機即時寫入快取
+    const lb = cachedCloudLeaderboard || getStoredLeaderboard();
     lb.push(newEntry);
     lb.sort((a, b) => b.score - a.score);
     const top20 = lb.slice(0, 20);
+    cachedCloudLeaderboard = top20;
     saveStoredLeaderboard(top20);
 
     const inputGroup = document.getElementById('gameover-name-input-group');
@@ -2013,6 +2108,11 @@ const GameApp = (() => {
       inputGroup.innerHTML = `<span style="color: #a5d6a7; font-weight: bold;">✅ 已成功登錄至排行榜！恭喜 ${name}！</span>`;
     }
     renderLeaderboard();
+
+    // 全雲端同步推送
+    pushCloudScoreRecord(newEntry).then(() => {
+      renderLeaderboard();
+    });
   }
 
   function triggerGameOver(winnerSide, reasonDesc) {
@@ -2261,6 +2361,8 @@ const GameApp = (() => {
   window.addEventListener('touchstart', initAudioContext, { once: true, passive: true });
   window.addEventListener('click', initAudioContext, { once: true, passive: true });
   setTimeout(() => renderStatsUI(), 100);
+  // 背景預先載入最新雲端排行榜
+  fetchCloudLeaderboard();
 
   return {
     showHome,

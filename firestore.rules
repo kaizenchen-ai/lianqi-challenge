@@ -1,0 +1,64 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // =========================================================================
+    // HELPER FUNCTIONS & VALIDATORS
+    // =========================================================================
+
+    // Verify incoming document has only allowed keys
+    function hasOnly(data, allowedFields) {
+      return data.keys().hasOnly(allowedFields);
+    }
+
+    // Verify incoming document has all required keys
+    function hasAll(data, requiredFields) {
+      return data.keys().hasAll(requiredFields);
+    }
+
+    // Validate a leaderboard score submission
+    function isValidLeaderboardEntry(data) {
+      return hasAll(data, ['name', 'score', 'opponent', 'mode'])
+        && hasOnly(data, ['name', 'score', 'opponent', 'mode', 'createdAt', 'date'])
+        // Player name: string between 1 and 20 characters
+        && data.name is string
+        && data.name.size() >= 1
+        && data.name.size() <= 20
+        // Score: integer or float between 0 and 100,000
+        && (data.score is int || data.score is float)
+        && data.score >= 0
+        && data.score <= 100000
+        // Opponent name: string between 1 and 30 characters
+        && data.opponent is string
+        && data.opponent.size() >= 1
+        && data.opponent.size() <= 30
+        // Game mode: string between 1 and 30 characters
+        && data.mode is string
+        && data.mode.size() >= 1
+        && data.mode.size() <= 30
+        // Optional createdAt: timestamp (with 5-minute clock drift allowance) or string
+        && (!('createdAt' in data) || (data.createdAt is timestamp && data.createdAt <= request.time + duration.value(5, 'm')) || (data.createdAt is string && data.createdAt.size() <= 50))
+        // Optional date: string (e.g. 'YYYY-MM-DD')
+        && (!('date' in data) || (data.date is string && data.date.size() <= 30));
+    }
+
+    // =========================================================================
+    // COLLECTION RULES
+    // =========================================================================
+
+    // Leaderboard collection: Public read, strictly validated create, no update/delete
+    match /leaderboard/{docId} {
+      allow read: if true;
+      allow create: if isValidLeaderboardEntry(request.resource.data);
+      allow update, delete: if false;
+    }
+
+    // =========================================================================
+    // DEFAULT DENY
+    // =========================================================================
+    // Explicitly deny read and write access to all other paths
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

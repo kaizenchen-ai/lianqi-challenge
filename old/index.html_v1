@@ -1,0 +1,558 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <title>象棋大對決 🎲 暗棋與連棋 (iPad 優化版)</title>
+  <link rel="stylesheet" href="style.css?v=20261005_lele_v2">
+</head>
+<body>
+  <div id="app-container">
+
+    <!-- 畫面 1：首頁・選擇玩法 (連棋 vs 暗棋) -->
+    <section id="screen-home" class="view-screen active">
+      <h1 class="game-title">🎲 象棋大對決 🎲</h1>
+      <p class="sub-title">請選擇今天想玩的遊戲玩法：</p>
+      
+      <div class="mode-select-grid">
+        <!-- 玩法 1：連棋模式 -->
+        <div class="mode-card featured" onclick="GameApp.chooseRuleMode('lianqi')">
+          <div class="mode-icon">🔥</div>
+          <div class="mode-title">連棋大挑戰</div>
+          <div class="mode-badge-tag">連吃 Combo 爽快版</div>
+          <div class="mode-desc">
+            • 吃子後可<strong>連續吃相鄰敵棋</strong>！<br>
+            • 炮可<strong>隔子跳吃暗棋</strong>！<br>
+            • 支援同階互吃、小卒逆襲吃帥！
+          </div>
+          <button class="btn-primary mode-enter-btn">開始玩連棋 ➔</button>
+        </div>
+
+        <!-- 玩法 2：傳統暗棋 -->
+        <div class="mode-card" onclick="GameApp.chooseRuleMode('banqi')">
+          <div class="mode-icon">🎯</div>
+          <div class="mode-title">傳統經典暗棋</div>
+          <div class="mode-badge-tag classic">正統一步棋版</div>
+          <div class="mode-desc">
+            • 經典標準玩法，<strong>一回合走一步</strong>！<br>
+            • 翻棋、走子、或吃一子換手。<br>
+            • 沉著冷靜，考驗每一步的大局佈局！
+          </div>
+          <button class="btn-secondary mode-enter-btn">開始玩暗棋 ➔</button>
+        </div>
+      </div>
+
+      <div class="home-sub-tools">
+        <button class="btn-secondary" onclick="GameApp.openRules()">
+          <span>📖</span> 玩法與規則說明
+        </button>
+        <button class="btn-secondary" onclick="GameApp.openLeaderboard()">
+          <span>🏆</span> 英雄排行榜
+        </button>
+        <button class="btn-secondary" onclick="GameApp.openStatsModal()">
+          <span>📊</span> 對戰戰績統計
+        </button>
+        <button id="btn-toggle-sound" class="btn-secondary" onclick="GameApp.toggleSound()">
+          <span id="sound-icon">🔊</span> 語音音效：開
+        </button>
+      </div>
+
+      <!-- 作者標註、西元正式日期、QR Code 與執行網址 -->
+      <footer class="home-credits-bar">
+        <div class="credits-author">👑 Created by <strong>Teacher Kevin</strong></div>
+        <div class="credits-date">📅 Saturday, September 26, 2026</div>
+
+        <div class="credits-qrcode-wrapper">
+          <div class="qrcode-card">
+            <img src="images/qrcode_game.svg" alt="QR Code" class="credits-qrcode-img">
+          </div>
+          <div class="qrcode-label">📱 手機 / iPad 掃描 QR Code 立即開玩</div>
+        </div>
+
+        <div class="credits-urls">
+          <span>🎮 遊戲網址：<a href="https://tinyurl.com/kaimac-game" target="_blank" rel="noopener">tinyurl.com/kaimac-game</a></span>
+          <span class="url-divider">•</span>
+          <span>☁️ Firebase 備用：<a href="https://tinyurl.com/kaimac-firebase" target="_blank" rel="noopener">tinyurl.com/kaimac-firebase</a></span>
+        </div>
+      </footer>
+    </section>
+
+    <!-- 畫面 2：選擇模式與對手 -->
+    <section id="screen-opponents" class="view-screen">
+      <div class="header-rule-indicator" id="opponents-rule-indicator">當前玩法：🔥 連棋大挑戰</div>
+      <h1 class="game-title">選擇對戰方式</h1>
+      <p class="sub-title">想和誰一較高下呢？</p>
+
+      <div class="play-type-toggle">
+        <button id="btn-tab-single" class="tab-btn active" onclick="GameApp.setPlayType('single')">🤖 單人對抗 AI</button>
+        <button id="btn-tab-dual" class="tab-btn" onclick="GameApp.setPlayType('dual')">👥 雙人面對面</button>
+      </div>
+
+      <!-- 電腦對戰即時勝率統計總覽條 -->
+      <div class="ai-battle-stats-bar" id="ai-stats-summary-bar" onclick="GameApp.openStatsModal()">
+        <div class="stats-bar-item">
+          <span class="stats-label">總戰績</span>
+          <span class="stats-value" id="stats-summary-record">0 戰 0 勝</span>
+        </div>
+        <div class="stats-divider">|</div>
+        <div class="stats-bar-item">
+          <span class="stats-label">總勝率</span>
+          <span class="stats-value highlight" id="stats-summary-winrate">0%</span>
+        </div>
+        <div class="stats-divider">|</div>
+        <div class="stats-bar-item">
+          <span class="stats-label">最高連勝</span>
+          <span class="stats-value" id="stats-summary-streak">0 連勝</span>
+        </div>
+        <div class="stats-bar-btn">📊 詳情 ➔</div>
+      </div>
+      
+      <!-- 單人對手清單 -->
+      <div id="panel-single-opponents" class="panel-single-opponents">
+        <div class="opponent-grid">
+          <div class="opponent-card" onclick="GameApp.selectOpponent('eric')">
+            <div class="opponent-avatar">👦</div>
+            <div class="opponent-name">Boy</div>
+            <div class="opponent-code">(Kevin)</div>
+            <div class="opponent-badge diff-easy">⭐ 最弱 (入門級 Easy)</div>
+            <div class="opponent-stat-pill" id="stat-opp-eric">0 戰 0 勝 (勝率 0%)</div>
+            <div class="opponent-desc">【入門練習】活潑多翻棋，節奏輕鬆，適合新手熟悉基本吃子規則建立自信！</div>
+          </div>
+
+          <div class="opponent-card" onclick="GameApp.selectOpponent('ana')">
+            <div class="opponent-avatar">👧</div>
+            <div class="opponent-name">Girl</div>
+            <div class="opponent-code">(Anna)</div>
+            <div class="opponent-badge diff-medium">⭐⭐ 中等 (進階級 Medium)</div>
+            <div class="opponent-stat-pill" id="stat-opp-ana">0 戰 0 勝 (勝率 0%)</div>
+            <div class="opponent-desc">【靈活機智】優先吃子，偶爾衝暗棋，適合已經熟悉下棋規則的玩家熱血對抗！</div>
+          </div>
+
+          <div class="opponent-card" onclick="GameApp.selectOpponent('michelle')">
+            <div class="opponent-avatar">👩</div>
+            <div class="opponent-name">Mother</div>
+            <div class="opponent-code">(Mom)</div>
+            <div class="opponent-badge diff-hard">⭐⭐⭐ 難 (專家級 Hard)</div>
+            <div class="opponent-stat-pill" id="stat-opp-michelle">0 戰 0 勝 (勝率 0%)</div>
+            <div class="opponent-desc">【啟發防反】零虧本原則(-600/-1200)、叉殺威脅、聚兵防守鏈，步步為營！</div>
+          </div>
+
+          <div class="opponent-card" onclick="GameApp.selectOpponent('davis')">
+            <div class="opponent-avatar">👨</div>
+            <div class="opponent-name">Father</div>
+            <div class="opponent-code">(Dad)</div>
+            <div class="opponent-badge diff-master">⭐⭐⭐⭐ 最難 (大師級 Master)</div>
+            <div class="opponent-stat-pill" id="stat-opp-davis">0 戰 0 勝 (勝率 0%)</div>
+            <div class="opponent-desc">【神級大師】1-ply Minimax全盤前瞻防護、Alpha Hunter圍剿大棋、架炮台連鎖！</div>
+          </div>
+        </div>
+
+        <!-- 4 大角色 AI 難度說明看板 -->
+        <div class="ai-difficulty-guide-card">
+          <div class="guide-header">
+            <span class="guide-header-icon">🧠</span>
+            <span class="guide-header-title">4 大角色 AI 難度說明（啟發式威脅評估與防守反擊引擎）</span>
+          </div>
+          <div class="guide-list">
+            <div class="guide-item item-davis">
+              <div class="guide-item-top">
+                <span class="avatar">👨</span>
+                <span class="char-name">爸爸 (Father / Dad)</span>
+                <span class="guide-badge diff-master">⭐⭐⭐⭐ 最難 / 大師級 Master</span>
+              </div>
+              <ul class="guide-bullets">
+                <li><strong>1-ply Minimax 全盤前瞻</strong>：走每一步前模擬全盤對手反擊，絕不留破綻或露空當，零失誤率。</li>
+                <li><strong>Alpha Hunter 獵殺圍剿</strong>：主動逼近圍剿玩家高價值棋（車/象/士/將），殘局強制換子簡化加速勝勢。</li>
+                <li><strong>架炮台與砲陣加成</strong>：善用普通棋子作為炮架，創造致命長程隔空跳打。</li>
+              </ul>
+            </div>
+
+            <div class="guide-item item-michelle">
+              <div class="guide-item-top">
+                <span class="avatar">👩</span>
+                <span class="char-name">媽媽 (Mother / Mom)</span>
+                <span class="guide-badge diff-hard">⭐⭐⭐ 難 / 專家級 Hard</span>
+              </div>
+              <ul class="guide-bullets">
+                <li><strong>零虧本原則</strong>：被威脅時絕不白送(-600)，絕不主動走入危險區(-1200)，只做有利或高階等價交換。</li>
+                <li><strong>叉殺佈局與聚兵防守</strong>：走法優先製造下一步多重吃子威脅，並相鄰結陣聚兵相互保護。</li>
+              </ul>
+            </div>
+
+            <div class="guide-item item-ana">
+              <div class="guide-item-top">
+                <span class="avatar">👧</span>
+                <span class="char-name">女孩 (Girl / Anna)</span>
+                <span class="guide-badge diff-medium">⭐⭐ 中等 / 進階級 Medium</span>
+              </div>
+              <ul class="guide-bullets">
+                <li>靈活機智，優先吃子，偶爾衝暗棋，適合已經熟悉下棋規則的玩家對抗。</li>
+              </ul>
+            </div>
+
+            <div class="guide-item item-eric">
+              <div class="guide-item-top">
+                <span class="avatar">👦</span>
+                <span class="char-name">男生 (Boy / Kevin)</span>
+                <span class="guide-badge diff-easy">⭐ 最弱 / 入門級 Easy</span>
+              </div>
+              <ul class="guide-bullets">
+                <li>活潑多翻棋，節奏輕鬆，適合新手熟悉基本吃子規則建立自信。</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 雙人模式快速開始 -->
+      <div id="panel-dual-start" class="dual-start-box" style="display: none;">
+        <div style="font-size: 3.5rem; margin-bottom: 12px;">👥</div>
+        <h2>雙人面對面對弈模式</h2>
+        <p class="dual-start-desc">兩位玩家在同一台 iPad 上輪流翻棋與吃子，<br>第一位翻開的棋子決定陣營！</p>
+        <button class="btn-primary btn-dual-start" onclick="GameApp.startDualGameDirect()">
+          <span>⚔️</span> 開始雙人對決！
+        </button>
+      </div>
+
+      <button class="btn-secondary" style="margin-top: 16px;" onclick="GameApp.showHome()">
+        <span>↩️</span> 返回選擇玩法
+      </button>
+    </section>
+
+    <!-- 畫面 3：遊戲主盤面 (4x8) -->
+    <section id="screen-game" class="view-screen">
+      <header class="game-header">
+        <!-- 最左側：Player 1 -->
+        <div class="player-info-box" id="info-p1">
+          <div class="player-badge" id="badge-p1">🧑</div>
+          <div class="player-meta">
+            <span class="player-role-name" id="name-p1">Player(You)</span>
+            <span class="turn-pill active-turn" id="turn-p1">❓ Undecided (Active)</span>
+          </div>
+        </div>
+
+        <!-- 正中央：左 2 功能按鈕 + 加大遊戲標題 + 右 2 功能按鈕 -->
+        <div class="header-center-area">
+          <div class="header-nav-group left-group">
+            <button class="icon-btn" title="回主選單" onclick="GameApp.showHome()">🏠</button>
+            <button class="icon-btn" title="規則說明" onclick="GameApp.openRules()">📖</button>
+          </div>
+
+          <div class="center-mode-title" id="game-active-mode-tag">🔥 連棋</div>
+
+          <div class="header-nav-group right-group">
+            <button class="icon-btn" id="btn-ingame-sound" title="切換音效" onclick="GameApp.toggleSound()">🔊</button>
+            <button class="icon-btn" title="重新一局" onclick="GameApp.restartCurrentGame()">🔄</button>
+          </div>
+        </div>
+
+        <!-- 最右側：Player 2 -->
+        <div class="player-info-box" id="info-p2">
+          <div class="player-meta" style="text-align: right;">
+            <span class="player-role-name" id="name-p2">Boy(Kevin)</span>
+            <span class="turn-pill wait-turn" id="turn-p2">❓ Undecided (Waiting)</span>
+          </div>
+          <div class="player-badge" id="badge-p2">👦</div>
+        </div>
+      </header>
+
+      <!-- 連吃 COMBO 橫幅 (連棋模式專用) -->
+      <div id="combo-banner">
+        <span id="combo-text">🔥 連吃 COMBO x2！可連續吃相鄰敵棋！</span>
+        <button class="btn-end-combo" onclick="GameApp.finishCombo()">完成連吃 (結束回合)</button>
+      </div>
+
+      <!-- 棋盤與兩側被吃棋子展示區 (左右側邊欄) -->
+      <div class="game-play-area">
+        <!-- 左側：紅方被吃棋子 -->
+        <aside class="side-graveyard left" id="panel-graveyard-red">
+          <div class="graveyard-card red-theme">
+            <span class="graveyard-title">🔴 Red Captured (<span id="count-dead-red">0</span>)</span>
+            <div class="graveyard-chips" id="chips-dead-red"></div>
+          </div>
+        </aside>
+
+        <!-- 中間：4x8 棋盤 -->
+        <div class="board-wrapper">
+          <div class="board-container" id="board-container">
+            <!-- 32 格動態生成 -->
+          </div>
+        </div>
+
+        <!-- 右側：黑方被吃棋子 -->
+        <aside class="side-graveyard right" id="panel-graveyard-black">
+          <div class="graveyard-card black-theme">
+            <span class="graveyard-title">⚫ Black Captured (<span id="count-dead-black">0</span>)</span>
+            <div class="graveyard-chips" id="chips-dead-black"></div>
+          </div>
+        </aside>
+      </div>
+
+      <!-- 狀態提示列 -->
+      <div id="game-status-tip" class="status-tip-bar">
+        提示：點擊暗棋翻開，或點擊自己的明棋移動與吃子
+      </div>
+    </section>
+
+    <!-- 彈窗 1：遊戲結束結算 -->
+    <div id="modal-gameover" class="modal-overlay">
+      <div class="modal-content">
+        <div class="modal-icon" id="gameover-icon">🎉</div>
+        <h2 class="modal-title" id="gameover-title">恭喜你贏了！</h2>
+        <p class="modal-subtitle" id="gameover-desc">太厲害了！你的棋藝令人驚嘆！</p>
+        
+        <div class="voice-status-box" id="voice-status-box">
+          <span>🎙️</span> <span id="voice-indicator">語音播放中...</span>
+        </div>
+
+        <!-- 本局得分與排行榜登錄區 -->
+        <div id="gameover-leaderboard-section" class="gameover-score-card">
+          <div class="gameover-score-row">
+            <span>本局得分：<strong id="gameover-score-value" class="highlight-score">0 分</strong></span>
+            <span id="gameover-rank-tag" class="rank-badge">🏆 榮登 Top 20！</span>
+          </div>
+          <div id="gameover-name-input-group" class="name-input-group">
+            <input type="text" id="input-player-name" placeholder="請輸入大名登上排行榜..." maxlength="12">
+            <button class="btn-primary btn-save-record" onclick="GameApp.submitScoreRecord()">儲存紀錄</button>
+          </div>
+        </div>
+
+        <!-- 對戰統計即時快報 -->
+        <div class="gameover-match-stat" id="gameover-match-stat">
+          對戰紀錄：0 戰 0 勝（勝率 0%）
+        </div>
+
+        <div class="modal-actions">
+          <button class="btn-primary" onclick="GameApp.restartCurrentGame()">
+            <span>🔄</span> 再玩一局！
+          </button>
+          <button class="btn-secondary" onclick="GameApp.openLeaderboard()">
+            <span>🏆</span> 查看排行榜 (Top 20)
+          </button>
+          <button class="btn-secondary" onclick="GameApp.openStatsModal()">
+            <span>📊</span> 查看對戰統計
+          </button>
+          <button class="btn-secondary" onclick="GameApp.showOpponents()">
+            <span>👥</span> 換個對手挑戰
+          </button>
+          <button class="btn-secondary" onclick="GameApp.showHome()">
+            <span>🏠</span> 切換玩法選單
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 彈窗 3：英雄排行榜 Top 20 -->
+    <div id="modal-leaderboard" class="modal-overlay">
+      <div class="modal-content" style="max-width: 640px;">
+        <h2 class="modal-title">🏆 象棋英雄排行榜 (Top 20)</h2>
+        <p class="modal-subtitle">擊敗更強對手、創造更高 Combo 與少步數可獲得更高積分！</p>
+
+        <div class="leaderboard-table-wrapper">
+          <table class="leaderboard-table">
+            <thead>
+              <tr>
+                <th style="width: 15%;">名次</th>
+                <th style="width: 25%;">英雄大名</th>
+                <th style="width: 18%;">積分</th>
+                <th style="width: 22%;">擊敗對手</th>
+                <th style="width: 20%;">模式</th>
+              </tr>
+            </thead>
+            <tbody id="leaderboard-tbody">
+              <!-- 動態注入 20 筆紀錄 -->
+            </tbody>
+          </table>
+        </div>
+
+        <div class="modal-actions" style="margin-top: 16px;">
+          <button class="btn-primary" onclick="GameApp.closeLeaderboard()">
+            <span>✅</span> 關閉排行榜
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 彈窗 4：電腦對戰勝率與戰績統計 -->
+    <div id="modal-stats" class="modal-overlay">
+      <div class="modal-content" style="max-width: 620px;">
+        <h2 class="modal-title">📊 電腦對戰數據統計</h2>
+        <p class="modal-subtitle">各角色對戰勝率、總局數與連勝紀錄</p>
+
+        <!-- 總覽卡片 -->
+        <div class="stats-overview-grid">
+          <div class="stat-box">
+            <div class="stat-box-num" id="stat-total-games">0</div>
+            <div class="stat-box-lbl">總對局數</div>
+          </div>
+          <div class="stat-box">
+            <div class="stat-box-num highlight-win" id="stat-total-wins">0</div>
+            <div class="stat-box-lbl">獲勝局數</div>
+          </div>
+          <div class="stat-box">
+            <div class="stat-box-num highlight-loss" id="stat-total-losses">0</div>
+            <div class="stat-box-lbl">失敗局數</div>
+          </div>
+          <div class="stat-box">
+            <div class="stat-box-num highlight-rate" id="stat-total-winrate">0%</div>
+            <div class="stat-box-lbl">總體勝率</div>
+          </div>
+        </div>
+
+        <!-- 各角色勝率表 -->
+        <div class="opponent-stats-list" id="opponent-stats-list">
+          <!-- 4 個角色對戰進度條 -->
+        </div>
+
+        <div class="modal-actions" style="margin-top: 16px;">
+          <button class="btn-primary" onclick="GameApp.closeStatsModal()">
+            <span>✅</span> 關閉統計
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 彈窗 2：完整規則說明 (分頁切換：連棋/暗棋 x 中文/英文/注音 6 分頁) -->
+    <div id="modal-rules" class="modal-overlay">
+      <div class="modal-content" style="max-width: 680px;">
+        <h2 class="modal-title">📖 象棋玩法與規則說明</h2>
+        
+        <!-- 上方 6 按鈕分區導航：左 3 個連棋，右 3 個暗棋 -->
+        <div class="rules-tabs-container">
+          <div class="rules-tab-group lianqi-group">
+            <div class="rules-group-label">🔥 連棋 (連吃)</div>
+            <div class="rules-group-buttons">
+              <button id="tab-btn-rule-lianqi_zh" class="rule-tab-btn active" onclick="GameApp.switchRulesTab('lianqi_zh')">中文版</button>
+              <button id="tab-btn-rule-lianqi_en" class="rule-tab-btn" onclick="GameApp.switchRulesTab('lianqi_en')">English</button>
+              <button id="tab-btn-rule-lianqi_zy" class="rule-tab-btn" onclick="GameApp.switchRulesTab('lianqi_zy')">注音版</button>
+            </div>
+          </div>
+
+          <div class="rules-tab-group banqi-group">
+            <div class="rules-group-label">🎯 暗棋 (傳統)</div>
+            <div class="rules-group-buttons">
+              <button id="tab-btn-rule-banqi_zh" class="rule-tab-btn" onclick="GameApp.switchRulesTab('banqi_zh')">中文版</button>
+              <button id="tab-btn-rule-banqi_en" class="rule-tab-btn" onclick="GameApp.switchRulesTab('banqi_en')">English</button>
+              <button id="tab-btn-rule-banqi_zy" class="rule-tab-btn" onclick="GameApp.switchRulesTab('banqi_zy')">注音版</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- 內容 1：連棋 中文版 -->
+        <div id="rule-content-lianqi_zh" class="rules-body">
+          <h3>⚡ 連棋模式（連吃 Combo 爽快版）特點：</h3>
+          <ul>
+            <li><span class="rule-highlight">同階互吃</span>：相等的同階級也可以互相吃！（例如士吃士、車吃車、兵吃兵）</li>
+            <li><span class="rule-highlight">士不能吃將</span>：黑士可吃紅仕與仕以下各階（仕相車馬炮兵），<strong style="color:#ff5252;">但絕對不能吃紅帥/將</strong>！</li>
+            <li><span class="rule-highlight">卒吃帥、兵吃將</span>：黑卒可以吃紅帥，紅兵可以吃黑將！（小卒立大功）</li>
+            <li><span class="rule-highlight">無限連吃（Combo）</span>：吃子後若新位置周圍還有合法可吃之敵棋，可以<strong>不限次數連續一直吃下去</strong>！直到把周圍敵棋吃完或主動點選完成！</li>
+            <li><span class="rule-highlight">衝暗棋（盲吃連吃）</span>：連吃或平時可直接攻擊相鄰未翻開暗棋：
+              <div style="font-size: 0.88rem; color: #ffe082; margin-top: 4px; padding-left: 12px; line-height: 1.6;">
+                • 翻出<strong>可吃之敵棋</strong>（如黑士翻出紅仕/相/車/馬/炮/兵，或黑卒翻出紅帥）➡️ <strong>成功吃下並可繼續連吃！</strong><br>
+                • 翻出<strong>自己同色棋</strong>（如黑士翻出黑棋）➡️ <strong>揭曉友軍，吃不下並結束連吃換手。</strong><br>
+                • 翻出<strong>比自己大的敵棋</strong>（如黑士翻出紅帥，或黑馬翻出紅車）➡️ <strong>揭曉敵棋，吃不下並結束連吃換手。</strong>
+              </div>
+            </li>
+            <li><span class="rule-highlight">炮跳吃暗棋</span>：炮隔一子跳吃，無論目標已翻開或未翻開皆可跳打！</li>
+          </ul>
+        </div>
+
+        <!-- 內容 2：連棋 英文版 (English) -->
+        <div id="rule-content-lianqi_en" class="rules-body" style="display: none;">
+          <h3>⚡ Lianqi Mode (Continuous Combo) Highlights:</h3>
+          <ul>
+            <li><span class="rule-highlight">Equal-Rank Capture</span>: Pieces of the exact same rank can capture each other! (Advisor takes Advisor, Chariot takes Chariot, Pawn takes Pawn).</li>
+            <li><span class="rule-highlight">Advisor Cannot Take King</span>: Advisors (仕/士) can capture Advisors, Elephants, Chariots, Horses, Cannons, and Pawns, <strong style="color:#ff5252;">but CANNOT capture the King/General (帥/將)</strong>!</li>
+            <li><span class="rule-highlight">Pawn Takes King</span>: Black Pawns (卒) can capture Red King (帥); Red Pawns (兵) can capture Black General (將)!</li>
+            <li><span class="rule-highlight">Infinite Continuous Combo</span>: After capturing a piece, if there are adjacent enemy or dark pieces you can capture, you can <strong>keep capturing continuously with no limit</strong> until you finish or end turn!</li>
+            <li><span class="rule-highlight">Blind Capture (Dark Piece Attack)</span>: You can directly attack adjacent unrevealed dark pieces:
+              <div style="font-size: 0.88rem; color: #ffe082; margin-top: 4px; padding-left: 12px; line-height: 1.6;">
+                • Revealed enemy piece is <strong>equal or lower rank</strong> (e.g. Advisor hits Elephant, or Pawn hits King) ➡️ <strong>Captured & continue Combo!</strong><br>
+                • Revealed piece is <strong>friendly piece</strong> ➡️ <strong>Revealed! Cannot capture & turn ends.</strong><br>
+                • Revealed enemy piece is <strong>higher rank</strong> (e.g. Advisor hits King) ➡️ <strong>Revealed! Cannot capture & turn ends.</strong>
+              </div>
+            </li>
+            <li><span class="rule-highlight">Cannon Screen Attack</span>: Cannons jump over exactly one piece (screen) to capture any piece, <strong>including unrevealed dark pieces</strong>!</li>
+          </ul>
+        </div>
+
+        <!-- 內容 3：連棋 注音版 -->
+        <div id="rule-content-lianqi_zy" class="rules-body" style="display: none;">
+          <h3>⚡ <ruby>連<rt>ㄌㄧㄢˊ</rt>棋<rt>ㄑㄧˊ</rt></ruby><ruby>模<rt>ㄇㄛˊ</rt>式<rt>ㄕˋ</rt></ruby>（<ruby>連<rt>ㄌㄧㄢˊ</rt>吃<rt>ㄔ</rt></ruby> Combo <ruby>爽<rt>ㄕㄨㄤˇ</rt>快<rt>ㄎㄨㄞˋ</rt>版<rt>ㄅㄢˇ</rt></ruby>）<ruby>特<rt>ㄊㄜˋ</rt>點<rt>ㄉㄧㄢˇ</rt></ruby>：</h3>
+          <ul>
+            <li><span class="rule-highlight"><ruby>同<rt>ㄊㄨㄥˊ</rt>階<rt>ㄐㄧㄝ</rt>互<rt>ㄏㄨˋ</rt>吃<rt>ㄔ</rt></ruby></span>：<ruby>相<rt>ㄒㄧㄤ</rt>等<rt>ㄉㄥˇ</rt></ruby><ruby>的<rt>˙ㄉㄜ</rt></ruby><ruby>同<rt>ㄊㄨㄥˊ</rt>階<rt>ㄐㄧㄝ</rt>級<rt>ㄐㄧˊ</rt></ruby><ruby>也<rt>ㄧㄝˇ</rt></ruby><ruby>可<rt>ㄎㄜˇ</rt>以<rt>ㄧˇ</rt></ruby><ruby>互<rt>ㄏㄨˋ</rt>相<rt>ㄒㄧㄤ</rt>吃<rt>ㄔ</rt></ruby>！（<ruby>例<rt>ㄌㄧˋ</rt>如<rt>ㄖㄨˊ</rt></ruby><ruby>士<rt>ㄕˋ</rt>吃<rt>ㄔ</rt>士<rt>ㄕˋ</rt></ruby>、<ruby>車<rt>ㄐㄩ</rt>吃<rt>ㄔ</rt>車<rt>ㄐㄩ</rt></ruby>、<ruby>兵<rt>ㄅㄧㄥ</rt>吃<rt>ㄔ</rt>兵<rt>ㄅㄧㄥ</rt></ruby>）</li>
+            <li><span class="rule-highlight"><ruby>士<rt>ㄕˋ</rt>不<rt>ㄅㄨˋ</rt>能<rt>ㄋㄥˊ</rt>吃<rt>ㄔ</rt>將<rt>ㄐㄧㄤˋ</rt></ruby></span>：<ruby>黑<rt>ㄏㄟ</rt>士<rt>ㄕˋ</rt></ruby><ruby>可<rt>ㄎㄜˇ</rt>以<rt>ㄧˇ</rt></ruby><ruby>吃<rt>ㄔ</rt></ruby><ruby>紅<rt>ㄏㄨㄥˊ</rt>仕<rt>ㄕˋ</rt></ruby><ruby>與<rt>ㄩˇ</rt></ruby><ruby>仕<rt>ㄕˋ</rt>以<rt>ㄧˇ</rt>下<rt>ㄒㄧㄚˋ</rt></ruby><ruby>各<rt>ㄍㄜˋ</rt>階<rt>ㄐㄧㄝ</rt></ruby>（<ruby>仕<rt>ㄕˋ</rt>相<rt>ㄒㄧㄤˋ</rt>車<rt>ㄐㄩ</rt>馬<rt>ㄇㄚˇ</rt>炮<rt>ㄆㄠˋ</rt>兵<rt>ㄅㄧㄥ</rt></ruby>），<strong style="color:#ff5252;"><ruby>但<rt>ㄉㄢˋ</rt>絕<rt>ㄐㄩㄝˊ</rt>對<rt>ㄉㄨㄟˋ</rt>不<rt>ㄅㄨˋ</rt>能<rt>ㄋㄥˊ</rt>吃<rt>ㄔ</rt>紅<rt>ㄏㄨㄥˊ</rt>帥<rt>ㄕㄨㄞˋ</rt></ruby>/<ruby>將<rt>ㄐㄧㄤˋ</rt></ruby>！</strong></li>
+            <li><span class="rule-highlight"><ruby>卒<rt>ㄗㄨˊ</rt>吃<rt>ㄔ</rt>帥<rt>ㄕㄨㄞˋ</rt></ruby>、<ruby>兵<rt>ㄅㄧㄥ</rt>吃<rt>ㄔ</rt>將<rt>ㄐㄧㄤˋ</rt></ruby></span>：<ruby>黑<rt>ㄏㄟ</rt>卒<rt>ㄗㄨˊ</rt></ruby><ruby>可<rt>ㄎㄜˇ</rt>以<rt>ㄧˇ</rt></ruby><ruby>吃<rt>ㄔ</rt></ruby><ruby>紅<rt>ㄏㄨㄥˊ</rt>帥<rt>ㄕㄨㄞˋ</rt></ruby>，<ruby>紅<rt>ㄏㄨㄥˊ</rt>兵<rt>ㄅㄧㄥ</rt></ruby><ruby>可<rt>ㄎㄜˇ</rt>以<rt>ㄧˇ</rt></ruby><ruby>吃<rt>ㄔ</rt></ruby><ruby>黑<rt>ㄏㄟ</rt>將<rt>ㄐㄧㄤˋ</rt></ruby>！（<ruby>小<rt>ㄒㄧㄠˇ</rt>卒<rt>ㄗㄨˊ</rt>立<rt>ㄌㄧˋ</rt>大<rt>ㄉㄚˋ</rt>功<rt>ㄍㄨㄥ</rt></ruby>）</li>
+            <li><span class="rule-highlight"><ruby>無<rt>ㄨˊ</rt>限<rt>ㄒㄧㄢˋ</rt>連<rt>ㄌㄧㄢˊ</rt>吃<rt>ㄔ</rt></ruby>（Combo）</span>：<ruby>吃<rt>ㄔ</rt>子<rt>ㄗˇ</rt></ruby><ruby>後<rt>ㄏㄡˋ</rt></ruby><ruby>若<rt>ㄖㄨㄛˋ</rt></ruby><ruby>新<rt>ㄒㄧㄣ</rt>位<rt>ㄨㄟˋ</rt>置<rt>ㄓˋ</rt></ruby><ruby>周<rt>ㄓㄡ</rt>圍<rt>ㄨㄟˊ</rt></ruby><ruby>還<rt>ㄏㄞˊ</rt>有<rt>ㄧㄡˇ</rt></ruby><ruby>合<rt>ㄏㄜˊ</rt>法<rt>ㄈㄚˇ</rt></ruby><ruby>可<rt>ㄎㄜˇ</rt>吃<rt>ㄔ</rt></ruby><ruby>之<rt>ㄓ</rt></ruby><ruby>敵<rt>ㄉㄧˊ</rt>棋<rt>ㄑㄧˊ</rt></ruby>，<ruby>可<rt>ㄎㄜˇ</rt>以<rt>ㄧˇ</rt></ruby><strong><ruby>不<rt>ㄅㄨˋ</rt>限<rt>ㄒㄧㄢˋ</rt>次<rt>ㄘˋ</rt>數<rt>ㄕㄨˋ</rt></ruby><ruby>連<rt>ㄌㄧㄢˊ</rt>續<rt>ㄒㄩˋ</rt></ruby><ruby>一<rt>ㄧ</rt>直<rt>ㄓˊ</rt></ruby><ruby>吃<rt>ㄔ</rt>下<rt>ㄒㄧㄚˋ</rt>去<rt>ㄑㄩˋ</rt></ruby></strong>！<ruby>直<rt>ㄓˊ</rt>到<rt>ㄉㄠˋ</rt></ruby><ruby>把<rt>ㄅㄚˇ</rt></ruby><ruby>周<rt>ㄓㄡ</rt>圍<rt>ㄨㄟˊ</rt></ruby><ruby>敵<rt>ㄉㄧˊ</rt>棋<rt>ㄑㄧˊ</rt></ruby><ruby>吃<rt>ㄔ</rt>完<rt>ㄨㄢˊ</rt></ruby><ruby>或<rt>ㄏㄨㄛˋ</rt></ruby><ruby>主<rt>ㄓㄨˇ</rt>動<rt>ㄉㄨㄥˋ</rt></ruby><ruby>點<rt>ㄉㄧㄢˇ</rt>選<rt>ㄒㄩㄢˇ</rt></ruby><ruby>完<rt>ㄨㄢˊ</rt>成<rt>ㄔㄥˊ</rt></ruby>！</li>
+            <li><span class="rule-highlight"><ruby>衝<rt>ㄔㄨㄥ</rt>暗<rt>ㄢˋ</rt>棋<rt>ㄑㄧˊ</rt></ruby>（<ruby>盲<rt>ㄇㄤˊ</rt>吃<rt>ㄔ</rt>連<rt>ㄌㄧㄢˊ</rt>吃<rt>ㄔ</rt></ruby>）</span>：<ruby>連<rt>ㄌㄧㄢˊ</rt>吃<rt>ㄔ</rt></ruby><ruby>或<rt>ㄏㄨㄛˋ</rt></ruby><ruby>平<rt>ㄆㄧㄥˊ</rt>時<rt>ㄕˊ</rt></ruby><ruby>可<rt>ㄎㄜˇ</rt>直<rt>ㄓˊ</rt>接<rt>ㄐㄧㄝ</rt></ruby><ruby>攻<rt>ㄍㄨㄥ</rt>擊<rt>ㄐㄧˊ</rt></ruby><ruby>相<rt>ㄒㄧㄤ</rt>鄰<rt>ㄌㄧㄣˊ</rt></ruby><ruby>未<rt>ㄨㄟˋ</rt>翻<rt>ㄈㄢ</rt>開<rt>ㄎㄞ</rt></ruby><ruby>暗<rt>ㄢˋ</rt>棋<rt>ㄑㄧˊ</rt></ruby>：
+              <div style="font-size: 0.88rem; color: #ffe082; margin-top: 6px; padding-left: 12px; line-height: 2.1;">
+                • <ruby>翻<rt>ㄈㄢ</rt>出<rt>ㄔㄨ</rt></ruby><strong><ruby>可<rt>ㄎㄜˇ</rt>吃<rt>ㄔ</rt>之<rt>ㄓ</rt>敵<rt>ㄉㄧˊ</rt>棋<rt>ㄑㄧˊ</rt></ruby></strong>（<ruby>如<rt>ㄖㄨˊ</rt></ruby><ruby>黑<rt>ㄏㄟ</rt>士<rt>ㄕˋ</rt></ruby><ruby>翻<rt>ㄈㄢ</rt>出<rt>ㄔㄨ</rt></ruby><ruby>紅<rt>ㄏㄨㄥˊ</rt>仕<rt>ㄕˋ</rt>相<rt>ㄒㄧㄤˋ</rt>車<rt>ㄐㄩ</rt>馬<rt>ㄇㄚˇ</rt>炮<rt>ㄆㄠˋ</rt>兵<rt>ㄅㄧㄥ</rt></ruby>，<ruby>或<rt>ㄏㄨㄛˋ</rt></ruby><ruby>黑<rt>ㄏㄟ</rt>卒<rt>ㄗㄨˊ</rt></ruby><ruby>翻<rt>ㄈㄢ</rt>出<rt>ㄔㄨ</rt></ruby><ruby>紅<rt>ㄏㄨㄥˊ</rt>帥<rt>ㄕㄨㄞˋ</rt></ruby>）➡️ <strong><ruby>成<rt>ㄔㄥˊ</rt>功<rt>ㄍㄨㄥ</rt>吃<rt>ㄔ</rt>下<rt>ㄒㄧㄚˋ</rt>並<rt>ㄅㄧㄥˋ</rt>可<rt>ㄎㄜˇ</rt>繼<rt>ㄐㄧˋ</rt>續<rt>ㄒㄩˋ</rt>連<rt>ㄌㄧㄢˊ</rt>吃<rt>ㄔ</rt>！</ruby></strong><br>
+                • <ruby>翻<rt>ㄈㄢ</rt>出<rt>ㄔㄨ</rt></ruby><strong><ruby>自<rt>ㄗˋ</rt>己<rt>ㄐㄧˇ</rt>同<rt>ㄊㄨㄥˊ</rt>色<rt>ㄙㄜˋ</rt>棋<rt>ㄑㄧˊ</rt></ruby></strong>（<ruby>如<rt>ㄖㄨˊ</rt></ruby><ruby>黑<rt>ㄏㄟ</rt>士<rt>ㄕˋ</rt></ruby><ruby>翻<rt>ㄈㄢ</rt>出<rt>ㄔㄨ</rt></ruby><ruby>黑<rt>ㄏㄟ</rt>棋<rt>ㄑㄧˊ</rt></ruby>）➡️ <strong><ruby>揭<rt>ㄐㄧㄝ</rt>曉<rt>ㄒㄧㄠˇ</rt>友<rt>ㄧㄡˇ</rt>軍<rt>ㄐㄩㄣ</rt>，吃<rt>ㄔ</rt>不<rt>ㄅㄨˋ</rt>下<rt>ㄒㄧㄚˋ</rt>並<rt>ㄅㄧㄥˋ</rt>結<rt>ㄐㄧㄝˊ</rt>束<rt>ㄕㄨˋ</rt>連<rt>ㄌㄧㄢˊ</rt>吃<rt>ㄔ</rt>換<rt>ㄏㄨㄢˋ</rt>手<rt>ㄕㄡˇ</rt>。</ruby></strong><br>
+                • <ruby>翻<rt>ㄈㄢ</rt>出<rt>ㄔㄨ</rt></ruby><strong><ruby>比<rt>ㄅㄧˇ</rt>自<rt>ㄗˋ</rt>己<rt>ㄐㄧˇ</rt>大<rt>ㄉㄚˋ</rt>的<rt>˙ㄉㄜ</rt>敵<rt>ㄉㄧˊ</rt>棋<rt>ㄑㄧˊ</rt></ruby></strong>（<ruby>如<rt>ㄖㄨˊ</rt></ruby><ruby>黑<rt>ㄏㄟ</rt>士<rt>ㄕˋ</rt></ruby><ruby>翻<rt>ㄈㄢ</rt>出<rt>ㄔㄨ</rt></ruby><ruby>紅<rt>ㄏㄨㄥˊ</rt>帥<rt>ㄕㄨㄞˋ</rt></ruby>，<ruby>或<rt>ㄏㄨㄛˋ</rt></ruby><ruby>黑<rt>ㄏㄟ</rt>馬<rt>ㄇㄚˇ</rt></ruby><ruby>翻<rt>ㄈㄢ</rt>出<rt>ㄔㄨ</rt></ruby><ruby>紅<rt>ㄏㄨㄥˊ</rt>車<rt>ㄐㄩ</rt></ruby>）➡️ <strong><ruby>揭<rt>ㄐㄧㄝ</rt>曉<rt>ㄒㄧㄠˇ</rt>敵<rt>ㄉㄧˊ</rt>棋<rt>ㄑㄧˊ</rt>，吃<rt>ㄔ</rt>不<rt>ㄅㄨˋ</rt>下<rt>ㄒㄧㄚˋ</rt>並<rt>ㄅㄧㄥˋ</rt>結<rt>ㄐㄧㄝˊ</rt>束<rt>ㄕㄨˋ</rt>連<rt>ㄌㄧㄢˊ</rt>吃<rt>ㄔ</rt>換<rt>ㄏㄨㄢˋ</rt>手<rt>ㄕㄡˇ</rt>。</ruby></strong>
+              </div>
+            </li>
+            <li><span class="rule-highlight"><ruby>炮<rt>ㄆㄠˋ</rt>跳<rt>ㄊㄧㄠˋ</rt>吃<rt>ㄔ</rt>暗<rt>ㄢˋ</rt>棋<rt>ㄑㄧˊ</rt></ruby></span>：<ruby>炮<rt>ㄆㄠˋ</rt></ruby><ruby>隔<rt>ㄍㄜˊ</rt></ruby><ruby>一<rt>ㄧ</rt>子<rt>ㄗˇ</rt></ruby><ruby>跳<rt>ㄊㄧㄠˋ</rt>吃<rt>ㄔ</rt></ruby>，<ruby>無<rt>ㄨˊ</rt>論<rt>ㄌㄨㄣˋ</rt></ruby><ruby>目<rt>ㄇㄨˋ</rt>標<rt>ㄅㄧㄠ</rt></ruby><ruby>已<rt>ㄧˇ</rt>翻<rt>ㄈㄢ</rt>開<rt>ㄎㄞ</rt></ruby><ruby>或<rt>ㄏㄨㄛˋ</rt></ruby><ruby>未<rt>ㄨㄟˋ</rt>翻<rt>ㄈㄢ</rt>開<rt>ㄎㄞ</rt></ruby><ruby>皆<rt>ㄐㄧㄝ</rt>可<rt>ㄎㄜˇ</rt>跳<rt>ㄊㄧㄠˋ</rt>打<rt>ㄉㄚˇ</rt></ruby>！</li>
+          </ul>
+        </div>
+
+        <!-- 內容 4：暗棋 中文版 -->
+        <div id="rule-content-banqi_zh" class="rules-body" style="display: none;">
+          <h3>🎯 傳統經典暗棋特點：</h3>
+          <ul>
+            <li><span class="rule-highlight">一回合一步</span>：每回合嚴格只能進行一個動作（翻一顆暗棋、移動一步、或吃一顆敵棋）。</li>
+            <li><span class="rule-highlight">吃子即換手</span>：吃子後<strong>立即結束回合</strong>換對方走，不可連吃。</li>
+            <li><span class="rule-highlight">炮翻山跳吃明棋</span>：同一直線隔一子跳吃已翻開之敵方明棋。</li>
+            <li><span class="rule-highlight">階級尊卑</span>：帥將 ＞ 仕士 ＞ 相象 ＞ 俥車 ＞ 傌馬 ＞ 炮包 ＞ 兵卒（兵卒剋帥將，同階互吃）。</li>
+            <li><span class="rule-highlight">困斃與和棋</span>：無暗棋可翻且無子可走者判負；連續 100 回合無吃子判定和局。</li>
+          </ul>
+        </div>
+
+        <!-- 內容 5：暗棋 英文版 (English) -->
+        <div id="rule-content-banqi_en" class="rules-body" style="display: none;">
+          <h3>🎯 Traditional Banqi (Classic Dark Chess) Rules:</h3>
+          <ul>
+            <li><span class="rule-highlight">One Move Per Turn</span>: In each turn, you can strictly perform only ONE action: reveal 1 dark piece, move 1 step, or capture 1 piece.</li>
+            <li><span class="rule-highlight">End Turn on Capture</span>: Capturing immediately ends your turn. No continuous combo.</li>
+            <li><span class="rule-highlight">Cannon Screen Jump</span>: Cannons jump over exactly one piece (screen) to capture revealed enemy pieces in a straight line.</li>
+            <li><span class="rule-highlight">Piece Hierarchy</span>: King ＞ Advisor ＞ Elephant ＞ Chariot ＞ Horse ＞ Cannon ＞ Pawn (Pawn captures King; equal ranks can capture each other).</li>
+            <li><span class="rule-highlight">Stalemate & Draw</span>: Player with no legal moves loses; 100 consecutive moves without capture results in a draw.</li>
+          </ul>
+        </div>
+
+        <!-- 內容 6：暗棋 注音版 -->
+        <div id="rule-content-banqi_zy" class="rules-body" style="display: none;">
+          <h3>🎯 <ruby>傳<rt>ㄔㄨㄢˊ</rt>統<rt>ㄊㄨㄥˇ</rt></ruby><ruby>經<rt>ㄐㄧㄥ</rt>典<rt>ㄉㄧㄢˇ</rt></ruby><ruby>暗<rt>ㄢˋ</rt>棋<rt>ㄑㄧˊ</rt></ruby><ruby>特<rt>ㄊㄜˋ</rt>點<rt>ㄉㄧㄢˇ</rt></ruby>：</h3>
+          <ul>
+            <li><span class="rule-highlight"><ruby>一<rt>ㄧ</rt>回<rt>ㄏㄨㄟˊ</rt>合<rt>ㄏㄜˊ</rt>一<rt>ㄧ</rt>步<rt>ㄅㄨˋ</rt></ruby></span>：<ruby>每<rt>ㄇㄟˇ</rt>回<rt>ㄏㄨㄟˊ</rt>合<rt>ㄏㄜˊ</rt></ruby><ruby>嚴<rt>ㄧㄢˊ</rt>格<rt>ㄍㄜˊ</rt></ruby><ruby>只<rt>ㄓˇ</rt>能<rt>ㄋㄥˊ</rt></ruby><ruby>進<rt>ㄐㄧㄣˋ</rt>行<rt>ㄒㄧㄥˊ</rt></ruby><ruby>一<rt>ㄧ</rt>個<rt>˙ㄍㄜ</rt></ruby><ruby>動<rt>ㄉㄨㄥˋ</rt>作<rt>ㄗㄨㄛˋ</rt></ruby>（<ruby>翻<rt>ㄈㄢ</rt></ruby><ruby>一<rt>ㄧ</rt>顆<rt>ㄎㄜ</rt></ruby><ruby>暗<rt>ㄢˋ</rt>棋<rt>ㄑㄧˊ</rt></ruby>、<ruby>移<rt>ㄧˊ</rt>動<rt>ㄉㄨㄥˋ</rt></ruby><ruby>一<rt>ㄧ</rt>步<rt>ㄅㄨˋ</rt></ruby>、<ruby>或<rt>ㄏㄨㄛˋ</rt></ruby><ruby>吃<rt>ㄔ</rt></ruby><ruby>一<rt>ㄧ</rt>顆<rt>ㄎㄜ</rt></ruby><ruby>敵<rt>ㄉㄧˊ</rt>棋<rt>ㄑㄧˊ</rt></ruby>）。</li>
+            <li><span class="rule-highlight"><ruby>吃<rt>ㄔ</rt>子<rt>ㄗˇ</rt>即<rt>ㄐㄧˊ</rt>換<rt>ㄏㄨㄢˋ</rt>手<rt>ㄕㄡˇ</rt></ruby></span>：<ruby>吃<rt>ㄔ</rt>子<rt>ㄗˇ</rt></ruby><ruby>後<rt>ㄏㄡˋ</rt></ruby><strong><ruby>立<rt>ㄌㄧˋ</rt>即<rt>ㄐㄧˊ</rt>結<rt>ㄐㄧㄝˊ</rt>束<rt>ㄕㄨˋ</rt>回<rt>ㄏㄨㄟˊ</rt>合<rt>ㄏㄜˊ</rt></ruby></strong><ruby>換<rt>ㄏㄨㄢˋ</rt>對<rt>ㄉㄨㄟˋ</rt>方<rt>ㄈㄤ</rt>走<rt>ㄗㄡˇ</rt></ruby>，<ruby>不<rt>ㄅㄨˋ</rt>可<rt>ㄎㄜˇ</rt>連<rt>ㄌㄧㄢˊ</rt>吃<rt>ㄔ</rt></ruby>。</li>
+            <li><span class="rule-highlight"><ruby>炮<rt>ㄆㄠˋ</rt>翻<rt>ㄈㄢ</rt>山<rt>ㄕㄢ</rt>跳<rt>ㄊㄧㄠˋ</rt>吃<rt>ㄔ</rt>明<rt>ㄇㄧㄥˊ</rt>棋<rt>ㄑㄧˊ</rt></ruby></span>：<ruby>同<rt>ㄊㄨㄥˊ</rt>一<rt>ㄧ</rt>直<rt>ㄓˊ</rt>線<rt>ㄒㄧㄢˋ</rt></ruby><ruby>隔<rt>ㄍㄜˊ</rt>一<rt>ㄧ</rt>子<rt>ㄗˇ</rt></ruby><ruby>跳<rt>ㄊㄧㄠˋ</rt>吃<rt>ㄔ</rt></ruby><ruby>已<rt>ㄧˇ</rt>翻<rt>ㄈㄢ</rt>開<rt>ㄎㄞ</rt></ruby><ruby>之<rt>ㄓ</rt>敵<rt>ㄉㄧˊ</rt>方<rt>ㄈㄤ</rt>明<rt>ㄇㄧㄥˊ</rt>棋<rt>ㄑㄧˊ</rt></ruby>。</li>
+            <li><span class="rule-highlight"><ruby>階<rt>ㄐㄧㄝ</rt>級<rt>ㄐㄧˊ</rt>尊<rt>ㄗㄨㄣ</rt>卑<rt>ㄅㄟ</rt></ruby></span>：<ruby>帥<rt>ㄕㄨㄞˋ</rt>將<rt>ㄐㄧㄤˋ</rt></ruby> ＞ <ruby>仕<rt>ㄕˋ</rt>士<rt>ㄕˋ</rt></ruby> ＞ <ruby>相<rt>ㄒㄧㄤˋ</rt>象<rt>ㄒㄧㄤˋ</rt></ruby> ＞ <ruby>俥<rt>ㄐㄩ</rt>車<rt>ㄐㄩ</rt></ruby> ＞ <ruby>傌<rt>ㄇㄚˇ</rt>馬<rt>ㄇㄚˇ</rt></ruby> ＞ <ruby>炮<rt>ㄆㄠˋ</rt>包<rt>ㄅㄠ</rt></ruby> ＞ <ruby>兵<rt>ㄅㄧㄥ</rt>卒<rt>ㄗㄨˊ</rt></ruby>（<ruby>兵<rt>ㄅㄧㄥ</rt>卒<rt>ㄗㄨˊ</rt>剋<rt>ㄎㄜˋ</rt>帥<rt>ㄕㄨㄞˋ</rt>將<rt>ㄐㄧㄤˋ</rt></ruby>，<ruby>同<rt>ㄊㄨㄥˊ</rt>階<rt>ㄐㄧㄝ</rt>互<rt>ㄏㄨˋ</rt>吃<rt>ㄔ</rt></ruby>）。</li>
+            <li><span class="rule-highlight"><ruby>困<rt>ㄎㄨㄣˋ</rt>斃<rt>ㄅㄧˋ</rt>與<rt>ㄩˇ</rt>和<rt>ㄏㄜˊ</rt>棋<rt>ㄑㄧˊ</rt></ruby></span>：<ruby>無<rt>ㄨˊ</rt>暗<rt>ㄢˋ</rt>棋<rt>ㄑㄧˊ</rt>可<rt>ㄎㄜˇ</rt>翻<rt>ㄈㄢ</rt>且<rt>ㄑㄧㄝˇ</rt>無<rt>ㄨˊ</rt>子<rt>ㄗˇ</rt>可<rt>ㄎㄜˇ</rt>走<rt>ㄗㄡˇ</rt>者<rt>ㄓㄜˇ</rt>判<rt>ㄆㄢˋ</rt>負<rt>ㄈㄨˋ</rt></ruby>；<ruby>連<rt>ㄌㄧㄢˊ</rt>續<rt>ㄒㄩˋ</rt> 100 <ruby>回<rt>ㄏㄨㄟˊ</rt>合<rt>ㄏㄜˊ</rt>無<rt>ㄨˊ</rt>吃<rt>ㄔ</rt>子<rt>ㄗˇ</rt>判<rt>ㄆㄢˋ</rt>定<rt>ㄉㄧㄥˋ</rt>和<rt>ㄏㄜˊ</rt>局<rt>ㄐㄩˊ</rt></ruby>。</li>
+          </ul>
+        </div>
+
+        <div class="rules-rank-box" id="rules-rank-box">
+          <strong>👑 棋子大小順序（由大到小）：</strong><br>
+          <div style="margin: 6px 0; font-size: 1.05rem; color: #ffe082;">
+            帥/將 ＞ 仕/士 ＞ 相/象 ＞ 俥/車 ＞ 傌/馬 ＞ 炮/包 ＞ 兵/卒
+          </div>
+          <div style="font-size: 0.85rem; color: #bcaaa4; margin-top: 4px;">
+            （帥將不吃兵卒；兵卒可吃帥將；同階可互吃）
+          </div>
+        </div>
+
+        <div class="modal-actions" style="margin-top: 18px;">
+          <button class="btn-primary" onclick="GameApp.closeRules()">
+            <span>👍</span> 我知道了，開始玩！
+          </button>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <script src="game.js?v=20261007_remember_name"></script>
+</body>
+</html>
