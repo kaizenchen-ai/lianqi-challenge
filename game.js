@@ -1304,7 +1304,7 @@ const GameApp = (() => {
 
   // ─── 連棋多步模擬鏈引擎（連吃 Combo 深度前瞻） ───
   function simulateComboChainValue(fromR, fromC, action, piece, aiLevel, maxDepth = 3) {
-    if (gameMode !== 'lianqi' || !action) return 0;
+    if (ruleMode !== 'lianqi' || !action) return 0;
     const snap = copyBoardSnap();
     applyMoveOnSnap(snap, fromR, fromC, action.r, action.c);
 
