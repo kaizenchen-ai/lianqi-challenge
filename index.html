@@ -6,7 +6,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <title>象棋大對決 🎲 暗棋與連棋 (iPad 優化版)</title>
-  <link rel="stylesheet" href="style.css?v=20261005_lele_v2">
+  <link rel="stylesheet" href="style.css?v=20261122_ai_v2">
 </head>
 <body>
   <div id="app-container">
@@ -119,6 +119,7 @@
             <div class="opponent-badge diff-easy">⭐ 最弱 (入門級 Easy)</div>
             <div class="opponent-stat-pill" id="stat-opp-eric">0 戰 0 勝 (勝率 0%)</div>
             <div class="opponent-desc">【入門練習】活潑多翻棋，節奏輕鬆，適合新手熟悉基本吃子規則建立自信！</div>
+            <div class="opponent-tip-box">💡 <strong>教學提示</strong>：Kevin 會隨機翻棋，先翻出車或大棋就能輕鬆壓制！</div>
           </div>
 
           <div class="opponent-card" onclick="GameApp.selectOpponent('ana')">
@@ -127,7 +128,8 @@
             <div class="opponent-code">(Anna)</div>
             <div class="opponent-badge diff-medium">⭐⭐ 中等 (進階級 Medium)</div>
             <div class="opponent-stat-pill" id="stat-opp-ana">0 戰 0 勝 (勝率 0%)</div>
-            <div class="opponent-desc">【靈活機智】優先吃子，偶爾衝暗棋，適合已經熟悉下棋規則的玩家熱血對抗！</div>
+            <div class="opponent-desc">【進階機智】高階棋遇險安全逃生、2步連吃感知、不拿大棋盲撞暗棋！</div>
+            <div class="opponent-tip-box">💡 <strong>教學提示</strong>：Anna 會保護車馬炮仕相，試著同時夾擊她兩顆大棋！</div>
           </div>
 
           <div class="opponent-card" onclick="GameApp.selectOpponent('michelle')">
@@ -136,7 +138,8 @@
             <div class="opponent-code">(Mom)</div>
             <div class="opponent-badge diff-hard">⭐⭐⭐ 難 (專家級 Hard)</div>
             <div class="opponent-stat-pill" id="stat-opp-michelle">0 戰 0 勝 (勝率 0%)</div>
-            <div class="opponent-desc">【啟發防反】零虧本原則(-600/-1200)、叉殺威脅、聚兵防守鏈，步步為營！</div>
+            <div class="opponent-desc">【專家防反】4-ply 連吃模擬、全盤防拆炮台檢查、小兵牽制與邊角安全開局！</div>
+            <div class="opponent-tip-box">💡 <strong>教學提示</strong>：Mom 防守嚴密且懂小兵逼將，善用雙線威脅逼她露出破綻！</div>
           </div>
 
           <div class="opponent-card" onclick="GameApp.selectOpponent('davis')">
@@ -145,7 +148,8 @@
             <div class="opponent-code">(Dad)</div>
             <div class="opponent-badge diff-master">⭐⭐⭐⭐ 最難 (大師級 Master)</div>
             <div class="opponent-stat-pill" id="stat-opp-davis">0 戰 0 勝 (勝率 0%)</div>
-            <div class="opponent-desc">【神級大師】1-ply Minimax全盤前瞻防護、Alpha Hunter圍剿大棋、架炮台連鎖！</div>
+            <div class="opponent-desc">【終極大師】6-ply 分支連殺、敵方2-ply連吃預判、動態算牌與殘局必勝追殺！</div>
+            <div class="opponent-tip-box">💡 <strong>教學提示</strong>：Dad 會識破送吃連殺陷阱，切忌輕易送子，保留雙炮打擊！</div>
           </div>
         </div>
 
@@ -153,7 +157,7 @@
         <div class="ai-difficulty-guide-card">
           <div class="guide-header">
             <span class="guide-header-icon">🧠</span>
-            <span class="guide-header-title">4 大角色 AI 難度說明（啟發式威脅評估與防守反擊引擎）</span>
+            <span class="guide-header-title">4 大角色 AI 難度說明（6-ply 分支連殺與 2-ply 反擊預判引擎）</span>
           </div>
           <div class="guide-list">
             <div class="guide-item item-davis">
@@ -163,9 +167,9 @@
                 <span class="guide-badge diff-master">⭐⭐⭐⭐ 最難 / 大師級 Master</span>
               </div>
               <ul class="guide-bullets">
-                <li><strong>1-ply Minimax 全盤前瞻</strong>：走每一步前模擬全盤對手反擊，絕不留破綻或露空當，零失誤率。</li>
-                <li><strong>Alpha Hunter 獵殺圍剿</strong>：主動逼近圍剿玩家高價值棋（車/象/士/將），殘局強制換子簡化加速勝勢。</li>
-                <li><strong>架炮台與砲陣加成</strong>：善用普通棋子作為炮架，創造致命長程隔空跳打。</li>
+                <li><strong>6-ply 分支連殺 + 2-ply 連吃反擊預判</strong>：模擬對手連吃反擊與先小後大轉折連殺，零失誤率。</li>
+                <li><strong>殘局必勝追殺 + 動態算牌</strong>：剩餘暗棋 ≤ 4 時主動圍剿敵方主力，杜絕和棋繞圈。</li>
+                <li><strong>架炮台與雙線獵殺</strong>：善用友棋架設炮台，並精算衝暗棋與跳暗棋期望值。</li>
               </ul>
             </div>
 
@@ -176,8 +180,8 @@
                 <span class="guide-badge diff-hard">⭐⭐⭐ 難 / 專家級 Hard</span>
               </div>
               <ul class="guide-bullets">
-                <li><strong>零虧本原則</strong>：被威脅時絕不白送(-600)，絕不主動走入危險區(-1200)，只做有利或高階等價交換。</li>
-                <li><strong>叉殺佈局與聚兵防守</strong>：走法優先製造下一步多重吃子威脅，並相鄰結陣聚兵相互保護。</li>
+                <li><strong>4-ply 連吃前瞻 + 全盤防拆台檢查</strong>：走步前檢查是否誤拆友軍炮台或暴露大棋，零虧本原則(-600/-1200)。</li>
+                <li><strong>小兵牽制與邊角安全開局</strong>：懂得用小卒壓制大帥、聚兵保護鏈與邊角安全翻棋。</li>
               </ul>
             </div>
 
@@ -188,7 +192,7 @@
                 <span class="guide-badge diff-medium">⭐⭐ 中等 / 進階級 Medium</span>
               </div>
               <ul class="guide-bullets">
-                <li>靈活機智，優先吃子，偶爾衝暗棋，適合已經熟悉下棋規則的玩家對抗。</li>
+                <li><strong>高階棋安全逃生 + 2-ply 連吃感知</strong>：車/馬/炮/仕/相/將受威脅會主動避險，且不會拿大棋盲撞暗棋。</li>
               </ul>
             </div>
 
@@ -199,7 +203,7 @@
                 <span class="guide-badge diff-easy">⭐ 最弱 / 入門級 Easy</span>
               </div>
               <ul class="guide-bullets">
-                <li>活潑多翻棋，節奏輕鬆，適合新手熟悉基本吃子規則建立自信。</li>
+                <li>活潑多翻棋，節奏輕鬆，適合新手熟悉基本吃子規則建立自信（100% 原版保留）。</li>
               </ul>
             </div>
           </div>
@@ -553,6 +557,6 @@
 
   </div>
 
-  <script src="game.js?v=20261108_dad_instant_fix"></script>
+  <script src="game.js?v=20261122_ai_v2"></script>
 </body>
 </html>

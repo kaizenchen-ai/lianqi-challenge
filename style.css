@@ -487,6 +487,20 @@ h1.game-title {
   line-height: 1.35;
 }
 
+.opponent-tip-box {
+  margin-top: 8px;
+  padding: 6px 8px;
+  border-radius: 10px;
+  background: rgba(255, 213, 79, 0.12);
+  border: 1px dashed rgba(255, 213, 79, 0.45);
+  color: #ffe082;
+  font-size: 0.76rem;
+  line-height: 1.35;
+  text-align: left;
+  width: 100%;
+  box-sizing: border-box;
+}
+
 /* 單人對手面板整體與 AI 難度指南看板 */
 .panel-single-opponents {
   width: 100%;

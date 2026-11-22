@@ -32,10 +32,34 @@ const GameApp = (() => {
   };
 
   const OPPONENT_PROFILES = {
-    eric: { name: 'Boy(Kevin)', avatar: '👦', desc: '入門練習・活潑開朗', level: 1 },
-    ana: { name: 'Girl(Anna)', avatar: '👧', desc: '靈活機智・穩扎穩打', level: 2 },
-    michelle: { name: 'Mother(Mom)', avatar: '👩', desc: '細心縝密・高手挑戰', level: 3 },
-    davis: { name: 'Father(Dad)', avatar: '👨', desc: '沉著老練・頂尖棋藝', level: 4 }
+    eric: {
+      name: 'Boy(Kevin)',
+      avatar: '👦',
+      desc: '入門練習・活潑開朗',
+      tip: '💡 提示：Kevin 會隨機翻棋，先翻出大棋就能輕鬆壓制！',
+      level: 1
+    },
+    ana: {
+      name: 'Girl(Anna)',
+      avatar: '👧',
+      desc: '靈活機智・穩扎穩打',
+      tip: '💡 提示：Anna 會保護高階棋並找 2 步連吃，注意別讓大棋落單！',
+      level: 2
+    },
+    michelle: {
+      name: 'Mother(Mom)',
+      avatar: '👩',
+      desc: '細心縝密・高手挑戰',
+      tip: '💡 提示：Mom 會防範 4 步連吃與拆炮台，善用雙線威脅逼她露出破綻！',
+      level: 3
+    },
+    davis: {
+      name: 'Father(Dad)',
+      avatar: '👨',
+      desc: '沉著老練・頂尖棋藝',
+      tip: '💡 提示：Dad 會預判 6 步連殺與敵方連吃反擊，切忌輕易送子！',
+      level: 4
+    }
   };
 
   // --- 語音音檔路徑 ---
@@ -396,7 +420,10 @@ const GameApp = (() => {
     renderGraveyards();
 
     const modeName = (ruleMode === 'lianqi') ? '🔥 連棋模式 (連吃版)' : '🎯 傳統暗棋 (一步版)';
-    updateStatusTip(`🎲 ${modeName}開始！請點擊任意一顆未翻開的暗棋決定陣營！`);
+    const oppTip = (playType === 'single' && OPPONENT_PROFILES[opponentKey]?.tip)
+      ? `｜${OPPONENT_PROFILES[opponentKey].tip}`
+      : '';
+    updateStatusTip(`🎲 ${modeName}開始！請翻開暗棋決定陣營${oppTip}`);
     showScreen('screen-game');
   }
 
@@ -1069,6 +1096,115 @@ const GameApp = (() => {
     return best;
   }
 
+  // 模擬：連棋模式下，玩家反擊吃子後若還能接續第 2 步連吃，計入 2-ply 連殺反擊懲罰（Level 4 專用）
+  function bestOpponentResponseWithComboOnSnap(snap, pColor = playerColor) {
+    if (!pColor) return 0;
+    if (ruleMode !== 'lianqi') return bestOpponentResponseOnSnap(snap, pColor);
+
+    let best = 0;
+    const dirs = [[-1, 0], [1, 0], [0, -1], [0, 1]];
+
+    function maxImmediateFollowUp(s, r0, c0, p) {
+      let follow = 0;
+      if (!p.isCannon) {
+        for (const [dr, dc] of dirs) {
+          const nr = r0 + dr, nc = c0 + dc;
+          if (nr < 0 || nr >= ROWS || nc < 0 || nc >= COLS) continue;
+          const tc = s[nr][nc];
+          if (tc.revealed && tc.piece && tc.piece.color !== pColor && canCapture(p, tc.piece)) {
+            follow = Math.max(follow, getPieceRankValue(tc.piece));
+          }
+        }
+      } else {
+        for (const [dr, dc] of dirs) {
+          let step = 1, cnt = 0;
+          while (true) {
+            const nr = r0 + dr * step, nc = c0 + dc * step;
+            if (nr < 0 || nr >= ROWS || nc < 0 || nc >= COLS) break;
+            const tc = s[nr][nc];
+            if (tc.piece) {
+              cnt++;
+              if (cnt === 2) {
+                if (tc.revealed && tc.piece.color !== pColor) {
+                  follow = Math.max(follow, getPieceRankValue(tc.piece));
+                }
+                break;
+              }
+            }
+            step++;
+          }
+        }
+      }
+      return follow;
+    }
+
+    for (let r = 0; r < ROWS; r++) {
+      for (let c = 0; c < COLS; c++) {
+        const cell = snap[r][c];
+        if (!cell.revealed || !cell.piece || cell.piece.color !== pColor) continue;
+        const p = cell.piece;
+
+        if (!p.isCannon) {
+          for (const [dr, dc] of dirs) {
+            const nr = r + dr, nc = c + dc;
+            if (nr < 0 || nr >= ROWS || nc < 0 || nc >= COLS) continue;
+            const tgt = snap[nr][nc];
+            if (tgt.revealed && tgt.piece && tgt.piece.color !== pColor && canCapture(p, tgt.piece)) {
+              const firstVal = getPieceRankValue(tgt.piece);
+              const nextSnap = copyBoardSnap(snap);
+              applyMoveOnSnap(nextSnap, r, c, nr, nc);
+              const followVal = maxImmediateFollowUp(nextSnap, nr, nc, p) * 0.75;
+              best = Math.max(best, firstVal + followVal);
+            }
+          }
+        } else {
+          for (const [dr, dc] of dirs) {
+            let step = 1, cnt = 0;
+            while (true) {
+              const nr = r + dr * step, nc = c + dc * step;
+              if (nr < 0 || nr >= ROWS || nc < 0 || nc >= COLS) break;
+              const t = snap[nr][nc];
+              if (t.piece) {
+                cnt++;
+                if (cnt === 2) {
+                  if (t.revealed && t.piece.color !== pColor) {
+                    const firstVal = getPieceRankValue(t.piece);
+                    const nextSnap = copyBoardSnap(snap);
+                    applyMoveOnSnap(nextSnap, r, c, nr, nc);
+                    const followVal = maxImmediateFollowUp(nextSnap, nr, nc, p) * 0.75;
+                    best = Math.max(best, firstVal + followVal);
+                  }
+                  break;
+                }
+              }
+              step++;
+            }
+          }
+        }
+      }
+    }
+    return best;
+  }
+
+  // ─── Level 4 專用：殘局必勝追殺引擎（縮短與敵方主力棋的距離，杜絕繞圈和棋） ───
+  function calcEndgameChaseBonus(fromR, fromC, toR, toC, piece, unrevealedCount, aiVal, pVal, targetBoard = board, pColor = playerColor) {
+    if (unrevealedCount > 4 || !pColor || aiVal <= pVal) return 0;
+    let bonus = 0;
+    for (let r = 0; r < ROWS; r++) {
+      for (let c = 0; c < COLS; c++) {
+        const cell = targetBoard[r][c];
+        if (cell.revealed && cell.piece && cell.piece.color === pColor && canCapture(piece, cell.piece)) {
+          const oldDist = Math.abs(fromR - r) + Math.abs(fromC - c);
+          const newDist = Math.abs(toR - r) + Math.abs(toC - c);
+          if (newDist < oldDist) {
+            bonus += 16 + Math.min(24, getPieceRankValue(cell.piece) * 0.3);
+          }
+        }
+      }
+    }
+    return bonus;
+  }
+
   // ─── 檢查 AI 是否能在走完某步後，形成下一步的連吃或多重威脅（叉殺） ───
   function countForkThreats(toR, toC, piece, targetBoard = board, aiColor = opponentColor) {
     let threats = 0;
@@ -1302,85 +1438,97 @@ const GameApp = (() => {
     return expectedPayoff;
   }
 
-  // ─── 連棋多步模擬鏈引擎（連吃 Combo 深度前瞻） ───
+  function collectSnapCaptures(snap, curR, curC, curPiece) {
+    const nextCaptures = [];
+    const dirs = [[-1, 0], [1, 0], [0, -1], [0, 1]];
+    if (!curPiece.isCannon) {
+      for (const [dr, dc] of dirs) {
+        const nr = curR + dr, nc = curC + dc;
+        if (nr >= 0 && nr < ROWS && nc >= 0 && nc < COLS) {
+          const tc = snap[nr][nc];
+          if (tc.revealed && tc.piece && tc.piece.color !== curPiece.color && canCapture(curPiece, tc.piece)) {
+            nextCaptures.push({ r: nr, c: nc, target: tc.piece });
+          }
+        }
+      }
+    } else {
+      for (const [dr, dc] of dirs) {
+        let step = 1, screens = 0;
+        while (true) {
+          const nr = curR + dr * step, nc = curC + dc * step;
+          if (nr < 0 || nr >= ROWS || nc < 0 || nc >= COLS) break;
+          const tc = snap[nr][nc];
+          if (tc.piece) {
+            screens++;
+            if (screens === 2) {
+              if (tc.revealed && tc.piece.color !== curPiece.color) {
+                nextCaptures.push({ r: nr, c: nc, target: tc.piece });
+              }
+              break;
+            }
+          }
+          step++;
+        }
+      }
+    }
+    nextCaptures.sort((a, b) => getPieceRankValue(b.target) - getPieceRankValue(a.target));
+    return nextCaptures;
+  }
+
+  // ─── 連棋多步模擬鏈引擎（連吃 Combo 深度前瞻 + Level 4 Top-2 轉折分支探索） ───
   function simulateComboChainValue(fromR, fromC, action, piece, aiLevel, maxDepth = 3) {
     if (ruleMode !== 'lianqi' || !action) return 0;
-    const snap = copyBoardSnap();
-    applyMoveOnSnap(snap, fromR, fromC, action.r, action.c);
+    const baseSnap = copyBoardSnap();
+    applyMoveOnSnap(baseSnap, fromR, fromC, action.r, action.c);
 
-    let totalGain = 0;
-    let curR = action.r;
-    let curC = action.c;
-    const curPiece = piece;
-
+    let firstGain = 0;
     const firstTarget = board[action.r][action.c].piece;
     if (firstTarget && board[action.r][action.c].revealed) {
-      totalGain += getPieceRankValue(firstTarget);
+      firstGain += getPieceRankValue(firstTarget);
     }
 
-    let depth = 1;
-    while (depth < maxDepth) {
-      const nextCaptures = [];
-      const dirs = [[-1, 0], [1, 0], [0, -1], [0, 1]];
+    function rolloutChain(snap, curR, curC, depth) {
+      if (depth >= maxDepth) {
+        const terminalThreat = isSquareThreatenedByEnemy(curR, curC, piece.color, piece.rank, piece.isCannon, snap);
+        return terminalThreat.threatened ? -getPieceRankValue(piece) * 0.8 : 0;
+      }
 
-      if (!curPiece.isCannon) {
-        for (const [dr, dc] of dirs) {
-          const nr = curR + dr, nc = curC + dc;
-          if (nr >= 0 && nr < ROWS && nc >= 0 && nc < COLS) {
-            const tc = snap[nr][nc];
-            if (tc.revealed && tc.piece && tc.piece.color !== curPiece.color && canCapture(curPiece, tc.piece)) {
-              nextCaptures.push({ r: nr, c: nc, target: tc.piece });
-            }
-          }
+      const nextCaptures = collectSnapCaptures(snap, curR, curC, piece);
+      if (nextCaptures.length === 0) {
+        const terminalThreat = isSquareThreatenedByEnemy(curR, curC, piece.color, piece.rank, piece.isCannon, snap);
+        return terminalThreat.threatened ? -getPieceRankValue(piece) * 0.8 : 0;
+      }
+
+      // Level 4 在第 1 層連吃時探索 Top-2 候選分支，發掘先吃小兵再轉折吃大車的連殺
+      const branchLimit = (aiLevel === 4 && depth === 1) ? Math.min(2, nextCaptures.length) : 1;
+      let bestBranchVal = null;
+
+      for (let i = 0; i < branchLimit; i++) {
+        const cand = nextCaptures[i];
+        const branchSnap = branchLimit > 1 ? copyBoardSnap(snap) : snap;
+        applyMoveOnSnap(branchSnap, curR, curC, cand.r, cand.c);
+        const postThreat = isSquareThreatenedByEnemy(cand.r, cand.c, piece.color, piece.rank, piece.isCannon, branchSnap);
+        const targetVal = getPieceRankValue(cand.target);
+        const myVal = getPieceRankValue(piece);
+
+        let branchGain;
+        if (postThreat.threatened && targetVal < myVal) {
+          // 智慧煞車：若繼續吃會送大棋，停在吃這步之前
+          const stopThreat = isSquareThreatenedByEnemy(curR, curC, piece.color, piece.rank, piece.isCannon, snap);
+          branchGain = stopThreat.threatened ? -myVal * 0.8 : 0;
+        } else {
+          branchGain = targetVal + rolloutChain(branchSnap, cand.r, cand.c, depth + 1);
         }
-      } else {
-        for (const [dr, dc] of dirs) {
-          let step = 1, screens = 0;
-          while (true) {
-            const nr = curR + dr * step, nc = curC + dc * step;
-            if (nr < 0 || nr >= ROWS || nc < 0 || nc >= COLS) break;
-            const tc = snap[nr][nc];
-            if (tc.piece) {
-              screens++;
-              if (screens === 2) {
-                if (tc.revealed && tc.piece.color !== curPiece.color) {
-                  nextCaptures.push({ r: nr, c: nc, target: tc.piece });
-                }
-                break;
-              }
-            }
-            step++;
-          }
+
+        if (bestBranchVal === null || branchGain > bestBranchVal) {
+          bestBranchVal = branchGain;
         }
       }
 
-      if (nextCaptures.length === 0) break;
-
-      nextCaptures.sort((a, b) => getPieceRankValue(b.target) - getPieceRankValue(a.target));
-      const bestNext = nextCaptures[0];
-
-      applyMoveOnSnap(snap, curR, curC, bestNext.r, bestNext.c);
-      const postThreat = isSquareThreatenedByEnemy(bestNext.r, bestNext.c, curPiece.color, curPiece.rank, curPiece.isCannon, snap);
-      const targetVal = getPieceRankValue(bestNext.target);
-      const myVal = getPieceRankValue(curPiece);
-
-      if (postThreat.threatened && targetVal < myVal) {
-        // 智慧煞車：連吃如果送大棋，立即打住
-        break;
-      }
-
-      totalGain += targetVal;
-      curR = bestNext.r;
-      curC = bestNext.c;
-      depth++;
+      return bestBranchVal !== null ? bestBranchVal : 0;
     }
 
-    const terminalThreat = isSquareThreatenedByEnemy(curR, curC, curPiece.color, curPiece.rank, curPiece.isCannon, snap);
-    if (terminalThreat.threatened) {
-      totalGain -= getPieceRankValue(curPiece) * 0.8;
-    }
-
-    return totalGain;
+    return firstGain + rolloutChain(baseSnap, action.r, action.c, 1);
   }
 
   // --- 電腦 AI 行動決策 (4 級智慧評估引擎) ---
@@ -1449,17 +1597,22 @@ const GameApp = (() => {
       }
     }
 
-    // === LEVEL 2: Girl (Anna) - 中等 / 進階級 (修整防低級失誤，不深算) ===
+    // === LEVEL 2: Girl (Anna) - 中等 / 進階級 (高階棋逃生 + 2-ply 連吃感知 + 防盲撞大棋) ===
     if (aiLevel === 2) {
       if (captures.length > 0) {
         const scoredCaptures = captures.map(c => {
           const targetPiece = board[c.action.r][c.action.c].piece;
           const targetVal = getPieceRankValue(targetPiece);
           const myVal = getPieceRankValue(c.piece);
+          const currThreat = isSquareThreatenedByEnemy(c.fromR, c.fromC, aiColor, c.piece.rank, c.piece.isCannon);
           const postThreat = isSquareThreatenedByEnemy(c.action.r, c.action.c, aiColor, c.piece.rank, c.piece.isCannon);
           let score = targetVal * 2;
+          if (currThreat.threatened) score += myVal * 1.2;
+          if (ruleMode === 'lianqi') {
+            score += simulateComboChainValue(c.fromR, c.fromC, c.action, c.piece, 2, 2) * 0.6;
+          }
           if (postThreat.threatened && targetVal < myVal) {
-            score -= 300; // 避免拿大將換小卒自殺
+            score -= 350; // 避免拿大將換小卒自殺
           }
           return { ...c, score };
         });
@@ -1471,28 +1624,39 @@ const GameApp = (() => {
         }
       }
 
-      // 帥/將被威脅時優先逃跑
-      const threatenedGenerals = allActions.filter(x => x.piece.rank === 7 && isSquareThreatenedByEnemy(x.fromR, x.fromC, aiColor, 7, false).threatened);
-      if (threatenedGenerals.length > 0) {
-        const safeEscapes = threatenedGenerals.filter(x => !isSquareThreatenedByEnemy(x.action.r, x.action.c, aiColor, 7, false).threatened);
+      // 高價值棋子 (仕/相/車/炮/將帥) 被威脅時優先安全逃跑
+      const threatenedHighPieces = allActions.filter(x =>
+        (x.piece.rank >= 4 || x.piece.isCannon) &&
+        isSquareThreatenedByEnemy(x.fromR, x.fromC, aiColor, x.piece.rank, x.piece.isCannon).threatened
+      );
+      if (threatenedHighPieces.length > 0 && Math.random() < 0.85) {
+        const safeEscapes = threatenedHighPieces
+          .filter(x => !isSquareThreatenedByEnemy(x.action.r, x.action.c, aiColor, x.piece.rank, x.piece.isCannon).threatened)
+          .sort((a, b) => getPieceRankValue(b.piece) - getPieceRankValue(a.piece));
         if (safeEscapes.length > 0) {
           executeCaptureOrMove(safeEscapes[0].fromR, safeEscapes[0].fromC, safeEscapes[0].action);
           return;
         }
       }
 
-      if (cannonUnrevealed.length > 0 && Math.random() < 0.5) {
-        const pick = cannonUnrevealed[Math.floor(Math.random() * cannonUnrevealed.length)];
+      if (cannonUnrevealed.length > 0 && Math.random() < 0.65) {
+        const safeCannon = cannonUnrevealed.filter(x => !isSquareThreatenedByEnemy(x.action.r, x.action.c, aiColor, x.piece.rank, true).threatened);
+        const pool = safeCannon.length > 0 ? safeCannon : cannonUnrevealed;
+        const pick = pool[Math.floor(Math.random() * pool.length)];
         executeCaptureOrMove(pick.fromR, pick.fromC, pick.action);
         return;
       }
 
       if (blindCaptures.length > 0 && Math.random() < 0.6) {
-        const safeBlind = blindCaptures.filter(x => !isSquareThreatenedByEnemy(x.action.r, x.action.c, aiColor, x.piece.rank, x.piece.isCannon).threatened);
-        const pool = safeBlind.length > 0 ? safeBlind : blindCaptures;
-        const pick = pool[Math.floor(Math.random() * pool.length)];
-        executeCaptureOrMove(pick.fromR, pick.fromC, pick.action);
-        return;
+        const smartBlind = blindCaptures.filter(x =>
+          x.piece.rank <= 3 &&
+          !isSquareThreatenedByEnemy(x.action.r, x.action.c, aiColor, x.piece.rank, x.piece.isCannon).threatened
+        );
+        if (smartBlind.length > 0) {
+          const pick = smartBlind[Math.floor(Math.random() * smartBlind.length)];
+          executeCaptureOrMove(pick.fromR, pick.fromC, pick.action);
+          return;
+        }
       }
 
       if (unrevealedCells.length > 0 && Math.random() < 0.45) {
@@ -1567,6 +1731,15 @@ const GameApp = (() => {
     const playerTotalVal = calcTotalPlayerPieceValue();
     const hasAdvantage = (aiTotalVal - playerTotalVal) > 35;
 
+    function calcOpponentCounterPenalty(fromR, fromC, toR, toC, l4Weight = 2.8, l3Weight = 1.6) {
+      const snap = copyBoardSnap();
+      applyMoveOnSnap(snap, fromR, fromC, toR, toC);
+      if (aiLevel === 4) {
+        return bestOpponentResponseWithComboOnSnap(snap, playerColor) * l4Weight;
+      }
+      return bestOpponentResponseOnSnap(snap, playerColor) * l3Weight;
+    }
+
     // (A) 評估吃子行動
     captures.forEach(item => {
       const targetPiece = board[item.action.r][item.action.c].piece;
@@ -1600,24 +1773,24 @@ const GameApp = (() => {
         score += attackerVal * (aiLevel === 4 ? 3.8 : 3.0);
       }
 
-      // 連吃 Combo 前瞻模擬（Level 4: 5-ply, Level 3: 3-ply）
-      const comboGain = simulateComboChainValue(item.fromR, item.fromC, item.action, item.piece, aiLevel, (aiLevel === 4 ? 5 : 3));
-      score += comboGain * (aiLevel === 4 ? 1.6 : 1.0);
+      // 連吃 Combo 前瞻模擬（Level 4: 6-ply 分支探索, Level 3: 4-ply）
+      const comboGain = simulateComboChainValue(item.fromR, item.fromC, item.action, item.piece, aiLevel, (aiLevel === 4 ? 6 : 4));
+      score += comboGain * (aiLevel === 4 ? 1.65 : 1.15);
 
       // 吃完後的叉殺威脅加成
       const forkCount = countForkThreats(item.action.r, item.action.c, item.piece, board, aiColor);
-      score += forkCount * (aiLevel === 4 ? 50 : 35);
+      score += forkCount * (aiLevel === 4 ? 50 : 38);
 
-      // Level 4 專屬加成：1-ply Minimax + 砲台跳吃線 + 獵殺高階棋 + 小兵大帥模型
+      // 全盤反擊預判（Level 4: 2-ply 連吃反擊預判；Level 3: 1-ply 防拆炮台與掛棋）
+      score -= calcOpponentCounterPenalty(item.fromR, item.fromC, item.action.r, item.action.c, 2.8, 1.6);
+
+      // 小兵壓制大帥 / 帥避卒模型（Level 4 全權重，Level 3 0.6x）
+      score += calcPawnThreatBonus(item.action.r, item.action.c, item.piece, board, aiColor, playerColor) * (aiLevel === 4 ? 1.0 : 0.6);
+
+      // Level 4 專屬加成：砲台跳吃線 + 獵殺高階棋
       if (aiLevel === 4) {
-        const snap = copyBoardSnap();
-        applyMoveOnSnap(snap, item.fromR, item.fromC, item.action.r, item.action.c);
-        const oppBest = bestOpponentResponseOnSnap(snap, playerColor);
-        score -= oppBest * 2.8;
-
         score += calcCannonBatteryBonus(item.action.r, item.action.c, item.piece, board, aiColor);
         score += calcHuntingBonus(item.action.r, item.action.c, item.piece, board, playerColor);
-        score += calcPawnThreatBonus(item.action.r, item.action.c, item.piece, board, aiColor, playerColor);
       }
 
       evaluatedMoves.push({ type: 'move', fromR: item.fromR, fromC: item.fromC, action: item.action, score });
@@ -1644,7 +1817,7 @@ const GameApp = (() => {
       // 2. 走到新位置能威脅玩家棋子（進攻壓制 / 叉殺佈局）
       if (!postThreat.threatened) {
         const forkCount = countForkThreats(item.action.r, item.action.c, item.piece, board, aiColor);
-        score += forkCount * (aiLevel === 4 ? 65 : 45);
+        score += forkCount * (aiLevel === 4 ? 65 : 48);
       }
 
       // 3. 佔據中心區域控制權
@@ -1682,16 +1855,15 @@ const GameApp = (() => {
         }
       }
 
-      // 6. Level 4 專屬加成：Minimax 全盤檢查 + 獵殺追擊 + 架炮台跳板 + 小兵防衛
-      if (aiLevel === 4) {
-        const snap = copyBoardSnap();
-        applyMoveOnSnap(snap, item.fromR, item.fromC, item.action.r, item.action.c);
-        const oppBest = bestOpponentResponseOnSnap(snap, playerColor);
-        score -= oppBest * 2.8;
+      // 6. 全盤反擊預判 + 小兵防衛（Level 3 & 4 均具備，權重分級）
+      score -= calcOpponentCounterPenalty(item.fromR, item.fromC, item.action.r, item.action.c, 2.8, 1.6);
+      score += calcPawnThreatBonus(item.action.r, item.action.c, item.piece, board, aiColor, playerColor) * (aiLevel === 4 ? 1.0 : 0.6);
 
+      // 7. Level 4 專屬加成：獵殺追擊 + 架炮台跳板 + 殘局追殺引擎 + 砲陣
+      if (aiLevel === 4) {
         score += calcHuntingBonus(item.action.r, item.action.c, item.piece, board, playerColor);
         score += calcScreenSetupBonus(item.action.r, item.action.c, board, aiColor, playerColor);
-        score += calcPawnThreatBonus(item.action.r, item.action.c, item.piece, board, aiColor, playerColor);
+        score += calcEndgameChaseBonus(item.fromR, item.fromC, item.action.r, item.action.c, item.piece, unrevealedCells.length, aiTotalVal, playerTotalVal, board, playerColor);
         if (item.piece.isCannon) {
           score += calcCannonBatteryBonus(item.action.r, item.action.c, item.piece, board, aiColor);
         }
@@ -1708,19 +1880,14 @@ const GameApp = (() => {
         score = -500; // 炮跳暗棋若有去無回，嚴厲扣分
       } else {
         const forkCount = countForkThreats(item.action.r, item.action.c, item.piece, board, aiColor);
-        score += forkCount * (aiLevel === 4 ? 65 : 45) + (aiLevel === 4 ? 90 : 60);
+        score += forkCount * (aiLevel === 4 ? 65 : 48) + (aiLevel === 4 ? 95 : 65);
 
         // 引入算牌期望值
         const exp = getBlindCaptureExpectancy(item.piece, item.action.r, item.action.c, true);
-        score += exp * (aiLevel === 4 ? 2.0 : 1.4);
+        score += exp * (aiLevel === 4 ? 2.1 : 1.5);
       }
 
-      if (aiLevel === 4) {
-        const snap = copyBoardSnap();
-        applyMoveOnSnap(snap, item.fromR, item.fromC, item.action.r, item.action.c);
-        const oppBest = bestOpponentResponseOnSnap(snap, playerColor);
-        score -= oppBest * 2.5;
-      }
+      score -= calcOpponentCounterPenalty(item.fromR, item.fromC, item.action.r, item.action.c, 2.5, 1.4);
 
       evaluatedMoves.push({ type: 'move', fromR: item.fromR, fromC: item.fromC, action: item.action, score });
     });
@@ -1742,13 +1909,8 @@ const GameApp = (() => {
         score += forkCount * (aiLevel === 4 ? 45 : 30);
       }
 
-      if (aiLevel === 4) {
-        const snap = copyBoardSnap();
-        applyMoveOnSnap(snap, item.fromR, item.fromC, item.action.r, item.action.c);
-        const oppBest = bestOpponentResponseOnSnap(snap, playerColor);
-        score -= oppBest * 2.5;
-        score += calcPawnThreatBonus(item.action.r, item.action.c, p, board, aiColor, playerColor);
-      }
+      score -= calcOpponentCounterPenalty(item.fromR, item.fromC, item.action.r, item.action.c, 2.5, 1.4);
+      score += calcPawnThreatBonus(item.action.r, item.action.c, p, board, aiColor, playerColor) * (aiLevel === 4 ? 1.0 : 0.6);
 
       evaluatedMoves.push({ type: 'move', fromR: item.fromR, fromC: item.fromC, action: item.action, score });
     });
@@ -1771,8 +1933,16 @@ const GameApp = (() => {
         }
       });
 
-      if (enemyThreatCount > 0) score -= enemyThreatCount * (aiLevel === 4 ? 40 : 28);
-      if (friendlyProtectCount > 0) score += friendlyProtectCount * (aiLevel === 4 ? 22 : 16);
+      if (enemyThreatCount > 0) score -= enemyThreatCount * (aiLevel === 4 ? 42 : 30);
+      if (friendlyProtectCount > 0) score += friendlyProtectCount * (aiLevel === 4 ? 24 : 18);
+
+      // 邊角安全開局加成（開局未翻開棋子多時，邊角僅 2~3 個鄰居，較不易四面受敵）
+      if (unrevealedCells.length >= 20) {
+        const isCorner = (cell.r === 0 || cell.r === ROWS - 1) && (cell.c === 0 || cell.c === COLS - 1);
+        const isEdge = (cell.r === 0 || cell.r === ROWS - 1 || cell.c === 0 || cell.c === COLS - 1);
+        if (isCorner) score += (aiLevel === 4 ? 14 : 9);
+        else if (isEdge) score += (aiLevel === 4 ? 6 : 4);
+      }
 
       // 兵力優勢時降低翻棋率（優先吃子打擊與簡化局面）
       if (aiTotalVal > 180 && captures.length > 0) {
@@ -1810,9 +1980,9 @@ const GameApp = (() => {
       const sameTypeTop = evaluatedMoves.filter(m => m.type === topMove.type && m.score >= topMove.score - 2);
       bestPick = sameTypeTop[0];
     } else if (aiLevel === 3) {
-      // Level 3 Mother：±12分微量隨機（8% 選次佳），棋路靈活自然且極具威脅
-      const topCandidates = evaluatedMoves.filter(m => m.score >= evaluatedMoves[0].score - 12);
-      if (topCandidates.length > 1 && Math.random() < 0.08) {
+      // Level 3 Mother：±10分微量隨機（5% 選次佳），棋路靈活自然且極具威脅
+      const topCandidates = evaluatedMoves.filter(m => m.score >= evaluatedMoves[0].score - 10);
+      if (topCandidates.length > 1 && Math.random() < 0.05) {
         bestPick = topCandidates[1];
       } else {
         bestPick = topCandidates[0];
@@ -1841,7 +2011,7 @@ const GameApp = (() => {
       const revealedCaptures = capturable.filter(a => a.type === 'capture');
       if (revealedCaptures.length > 0) {
         if (aiLevel === 4) {
-          // Level 4 Father (大師級)：5-ply 深度前瞻 + 智慧煞車（Smart Stop）
+          // Level 4 Father (大師級)：6-ply 分支前瞻 + 敵方 2-ply 連吃反擊預判 + 智慧煞車
           const evaluatedCombos = revealedCaptures.map(act => {
             const targetPiece = board[act.r][act.c].piece;
             const targetVal = getPieceRankValue(targetPiece);
@@ -1850,14 +2020,14 @@ const GameApp = (() => {
             const snap = copyBoardSnap();
             applyMoveOnSnap(snap, comboPos.r, comboPos.c, act.r, act.c);
             const postThreat = isSquareThreatenedByEnemy(act.r, act.c, aiPiece.color, aiPiece.rank, aiPiece.isCannon, snap);
-            const oppBest = bestOpponentResponseOnSnap(snap, playerColor);
+            const oppBest = bestOpponentResponseWithComboOnSnap(snap, playerColor);
 
             let netScore = targetVal * 2 - oppBest * 2.5;
             if (postThreat.threatened && targetVal < myVal) {
               netScore -= 800; // 嚴懲以大換小送死
             }
 
-            const chainGain = simulateComboChainValue(comboPos.r, comboPos.c, act, aiPiece, 4, 5);
+            const chainGain = simulateComboChainValue(comboPos.r, comboPos.c, act, aiPiece, 4, 6);
             netScore += chainGain;
             netScore += countForkThreats(act.r, act.c, aiPiece, snap, opponentColor) * 40;
 
@@ -1876,16 +2046,16 @@ const GameApp = (() => {
           executeCaptureOrMove(comboPos.r, comboPos.c, topCombo.act);
           return;
         } else if (aiLevel === 3) {
-          // Level 3 Mother：3-ply 前瞻 + 叉殺與防送子煞車
+          // Level 3 Mother：4-ply 前瞻 + 叉殺與防送子煞車
           const evaluatedCombos = revealedCaptures.map(act => {
             const targetPiece = board[act.r][act.c].piece;
             const targetVal = getPieceRankValue(targetPiece);
             const myVal = getPieceRankValue(aiPiece);
             const postThreat = isSquareThreatenedByEnemy(act.r, act.c, aiPiece.color, aiPiece.rank, aiPiece.isCannon);
             let score = targetVal * 1.5;
-            if (postThreat.threatened && targetVal < myVal) score -= 500;
-            score += countForkThreats(act.r, act.c, aiPiece, board, opponentColor) * 30;
-            score += simulateComboChainValue(comboPos.r, comboPos.c, act, aiPiece, 3, 3) * 0.8;
+            if (postThreat.threatened && targetVal < myVal) score -= 550;
+            score += countForkThreats(act.r, act.c, aiPiece, board, opponentColor) * 32;
+            score += simulateComboChainValue(comboPos.r, comboPos.c, act, aiPiece, 3, 4) * 0.9;
             return { act, score };
           });
           evaluatedCombos.sort((a, b) => b.score - a.score);
@@ -1896,21 +2066,21 @@ const GameApp = (() => {
           executeCaptureOrMove(comboPos.r, comboPos.c, evaluatedCombos[0].act);
           return;
         } else if (aiLevel === 2) {
-          // Level 2 Girl：按子力排序，避免送大吃小
-          revealedCaptures.sort((a, b) => {
-            const targetA = board[a.r][a.c].piece;
-            const targetB = board[b.r][b.c].piece;
-            return getPieceRankValue(targetB) - getPieceRankValue(targetA);
+          // Level 2 Girl：2-ply 簡易連吃評估，避免送大吃小
+          const evaluatedCombos = revealedCaptures.map(act => {
+            const targetVal = getPieceRankValue(board[act.r][act.c].piece);
+            const chainGain = simulateComboChainValue(comboPos.r, comboPos.c, act, aiPiece, 2, 2);
+            return { act, score: targetVal + chainGain * 0.5, targetVal };
           });
-          const best = revealedCaptures[0];
-          const targetVal = getPieceRankValue(board[best.r][best.c].piece);
+          evaluatedCombos.sort((a, b) => b.score - a.score);
+          const best = evaluatedCombos[0];
           const myVal = getPieceRankValue(aiPiece);
-          const postThreat = isSquareThreatenedByEnemy(best.r, best.c, aiPiece.color, aiPiece.rank, aiPiece.isCannon);
-          if (postThreat.threatened && targetVal < myVal && Math.random() < 0.7) {
+          const postThreat = isSquareThreatenedByEnemy(best.act.r, best.act.c, aiPiece.color, aiPiece.rank, aiPiece.isCannon);
+          if (postThreat.threatened && best.targetVal < myVal && Math.random() < 0.85) {
             finishCombo();
             return;
           }
-          executeCaptureOrMove(comboPos.r, comboPos.c, best);
+          executeCaptureOrMove(comboPos.r, comboPos.c, best.act);
           return;
         } else {
           // Level 1 Boy：最入門級隨機吃子
